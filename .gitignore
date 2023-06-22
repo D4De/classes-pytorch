@@ -6,3 +6,5 @@ examples/pytorch/data/MNIST
 mnist
 load.py
 __pycache__
+.venv
+.venv_tf

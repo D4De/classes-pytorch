@@ -7,11 +7,11 @@ import os
 import sys 
 # To make this script work, you should have working tensorflow 2 enviorment
 # and you must move this script in the repository top level folder (3 folders up)
-CLASSES_MODULE_PATH = "../../"
-WEIGHT_FILE_PATH = "."
-
+CLASSES_MODULE_PATH = "../../../"
+WEIGHT_FILE_PATH = "../"
+MODELS_PATH = CLASSES_MODULE_PATH + "models"
 # appending a path
-sys.path.append(CLASSES_MODULE_PATH) #CHANGE THIS LINE
+sys.path.append(CLASSES_MODULE_PATH)  # CHANGE THIS LINE
 
 from src.injection_sites_generator import *
 
@@ -31,15 +31,15 @@ from src.injection_sites_generator import *
 #
 # The function will return the corrupted output of the model
 
-def generate_injection_sites(sites_count, layer_type, layer_name, size, models_path, models_mode=''):
-    injection_site = InjectableSite(layer_type, layer_name, size)
+def generate_injection_sites(sites_count, layer_type, size, models_path):
+    injection_site = InjectableSite(layer_type, size)
 
     
-    injection_sites, cardinality, pattern = InjectionSitesGenerator([injection_site], models_mode, models_path) \
+    injection_sites = InjectionSitesGenerator([injection_site], models_path) \
             .generate_random_injection_sites(sites_count)
 
 
-    return injection_sites, cardinality, pattern
+    return injection_sites
 
 
 def build_model(input_shape, saved_weights=None):
@@ -72,20 +72,18 @@ def inject_layer(model, img, selected_layer_idx, layer_type, layer_output_shape_
     get_model_output = K.function([model.layers[selected_layer_idx + 1].input], [model.layers[-1].output])
 
     output_selected_layer = get_selected_layer_output([np.expand_dims(img, 0)])[0]
+    range_min, range_max = np.min(output_selected_layer), np.max(output_selected_layer)
 
-    injection_site, cardinality, pattern = generate_injection_sites(1, layer_type, '',
-                                                                    layer_output_shape_cf, models_path)
+    injection_site = generate_injection_sites(1, layer_type, layer_output_shape_cf, models_path)
     
     if len(injection_site) > 0:
         print(f"Injected from: {next(injection_site[0].get_indexes_values())[0]}")
         for idx, value in injection_site[0].get_indexes_values():
             # Reorder idx if format is NHWC
             channel_last_idx = (idx[0], idx[2], idx[3], idx[1])
-            if value.value_type == '[-1,1]':
-                output_selected_layer[channel_last_idx] += value.raw_value
-            else:
-                output_selected_layer[channel_last_idx] = value.raw_value
+            output_selected_layer[channel_last_idx] = value.get_value(range_min, range_max)
 
+    print(output_selected_layer.shape)
     model_output = get_model_output(output_selected_layer)
 
     return model_output
@@ -105,8 +103,8 @@ model = build_model(x_train[0].shape, saved_weights=path_weights)
 errors = 0
 
 for _ in range(NUM_INJECTIONS):
-    res = inject_layer(model, x_train[NUM], SELECTED_LAYER_IDX, OperatorType.Conv2D3x3, '(None, 3, 32, 32)',
-                       models_path='src/models_warp')
+    res = inject_layer(model, x_train[NUM], SELECTED_LAYER_IDX, 'conv_gemm', '(None, 3, 32, 32)',
+                       models_path=MODELS_PATH)
     if np.argmax(res) != lab_train[NUM]:
         errors += 1
 
