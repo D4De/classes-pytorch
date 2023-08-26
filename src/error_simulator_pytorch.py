@@ -44,16 +44,6 @@ class Simulator(nn.Module):
             raise RuntimeError("No injection happened")
         return x
 
-def create_capture_func_to_db(cursor : Optional[sqlite3.Cursor]):
-    file_directory, file_name = os.path.split(os.path.realpath(__file__))
-    insert_script_path = os.path.join(file_directory, 'sql', 'insert_experiment.sql')
-
-    with open(insert_script_path, 'r') as f:
-        insert_prep_statement = f.read()
-    
-    def _capture_to_db(data : ClassesSimulationData):
-        cursor.executemany(insert_prep_statement, [data])
-    return _capture_to_db
 
 def create_capture_func_to_list(dest_list : List[ClassesSimulationData]):
     def _capture_to_list(data : ClassesSimulationData):
