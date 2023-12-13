@@ -1,0 +1,11 @@
+{
+    "model": "weights.h5",
+    "new_model": "new_weights.h5",
+    "injection_sites": 5,
+    "layer_type": "conv_gemm",
+    "layer_output_shape_cf": "(None, 32, 32, 3)",
+    "layer_output_shape_cl": "(None, 3, 32, 32)",
+    "models_folder": "../../models",
+    "range_min": 50,
+    "range_max": -50
+}
