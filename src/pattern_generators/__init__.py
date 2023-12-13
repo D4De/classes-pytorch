@@ -14,7 +14,9 @@ from .skip_4 import skip_4_generator
 from .multiple_channels_uncategorized import multiple_channels_uncategorized_generator
 
 
-generator_functions : Dict[str, Callable[[List[int], Dict[str, Any]], Optional[List[int]]]] = {
+generator_functions: Dict[
+    str, Callable[[List[int], Dict[str, Any]], Optional[List[int]]]
+] = {
     "bullet_wake": bullet_wake_generator,
     "multi_channel_block": multiple_channels_multi_block_generator,
     "same_column": same_row_generator,
@@ -28,5 +30,5 @@ generator_functions : Dict[str, Callable[[List[int], Dict[str, Any]], Optional[L
     "same_row": same_row_generator,
     "single_block": single_block_generator,
     "single_channel_random": single_channel_random_generator,
-    "skip_4": skip_4_generator
+    "skip_4": skip_4_generator,
 }
