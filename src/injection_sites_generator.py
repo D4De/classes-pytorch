@@ -169,6 +169,12 @@ class InjectionSite(object):
 
     def get_indexes_values(self) -> Iterable[Tuple[List[int], InjectionValue]]:
         return zip(self.__indexes, self.__values)
+    
+    def get_indexes(self) -> Iterable[List[int]]:
+        return self.__indexes
+
+    def get_values(self, range_min, range_max) -> list:
+        return [val.get_value(range_min, range_max) for val in self.__values]
 
     def as_indexes_list(self) -> List[int]:
         return list(self.__indexes)
@@ -201,7 +207,7 @@ class InjectionSitesGenerator(object):
         self.__fixed_spatial_class = fixed_spatial_class
         self.__fixed_domain_class = fixed_domain_class
 
-    def generate_random_injection_sites(self, size: int, fixed_spatial_class : Optional[str] = None, fixed_domain_class : Optional[dict] = None) -> List[InjectionSite]:
+    def generate_random_injection_sites(self, size: int, fixed_spatial_class : Optional[str] = None, fixed_domain_class : Optional[dict] = None, return_pattern_details = False) -> List[InjectionSite]:
 
         injectables_site_indexes = np.random.choice(len(self.__injectable_sites), size=size)
         injection_sites = []
@@ -230,7 +236,8 @@ class InjectionSitesGenerator(object):
                     spatial_parameters = self.__select_spatial_parameters(operator_name, spatial_class)
                     spatial_positions = self.__generate_spatial_pattern(spatial_class, output_shape, spatial_parameters)
                     if spatial_positions is None:
-                        logger.warn(f"Injection attempt #{attempts + 1} failed. Params {spatial_class} {spatial_parameters} {output_shape}")
+                        logger.error(f"Injection attempt #{attempts + 1} failed. Params {spatial_class=} {spatial_parameters=} {output_shape=}")
+
                         raise RuntimeError("Injection attempt failed")
 
                     channel_count = len(set(sp_pos[1] for sp_pos in spatial_positions))
@@ -249,7 +256,10 @@ class InjectionSitesGenerator(object):
             if attempts == MAX_FAILED_ATTEMPTS_IN_A_ROW:
                 logger.error(f"Injection failed {MAX_FAILED_ATTEMPTS_IN_A_ROW}. Aborting")
                 raise RuntimeError(f"Failed to inject {MAX_FAILED_ATTEMPTS_IN_A_ROW} in a row")
-        return injection_sites
+        if return_pattern_details:
+            return injection_sites, (spatial_class, spatial_parameters, domain_class, channel_count)
+        else:
+            return injection_sites
     
     def __select_spatial_class(self, operator_name : str) -> str:
         if operator_name not in self.__models:
