@@ -4,8 +4,9 @@ import numpy as np
 from .injection_sites_generator import InjectableSite, InjectionSitesGenerator, InjectionValue
 from enum import IntEnum
 import sys
+from tqdm import tqdm
 
-from src.loggers import get_logger
+from .loggers import get_logger
 
 logger = get_logger("ErrorSimulator")
 
@@ -19,7 +20,11 @@ def create_injection_sites_layer_simulator(
         range_min: float = None,
         range_max: float = None,
         fixed_spatial_class: Optional[str] = None,
-        fixed_domain_class: Optional[dict] = None):
+        fixed_domain_class: Optional[dict] = None,
+        return_id_errors = False,
+        verbose=False):
+    
+    
     def __generate_injection_sites(sites_count: int, layer_type: str, size: int):
 
         injection_site = InjectableSite(layer_type, size)
@@ -39,9 +44,14 @@ def create_injection_sites_layer_simulator(
 
     available_injection_sites = []
     masks = []
+    patterns = []
 
-    for _ in range(num_requested_injection_sites):
+    ids = []        #FOR_NIC_REPORTS (list of error patterns)
+
+    for _ in tqdm(range(num_requested_injection_sites),disable=not verbose):
+        ids.append((0,0)) #FOR_NIC_REPORTS (list of error patterns) => ASK IF IT IS POSSIBLE TO EXTRACT PATTERNS USED
         curr_injection_sites = __generate_injection_sites(1, layer_type, layer_output_shape_cf)
+        pattern = curr_injection_sites[0].get_pattern()
         shape = eval(layer_output_shape_cl.replace('None', '1'))
         curr_inj_nump = np.zeros(shape=shape[1:])
         curr_mask = np.ones(shape=shape[1:])
@@ -54,85 +64,51 @@ def create_injection_sites_layer_simulator(
 
             available_injection_sites.append(curr_inj_nump)
             masks.append(curr_mask)
+            patterns.append(pattern)
 
-    return available_injection_sites, masks
+    if return_id_errors:
+        return available_injection_sites, masks, patterns
+    else:
+        return available_injection_sites, masks
 
 
 class ErrorSimulatorMode(IntEnum):
     disabled = 1,
     enabled = 2
 
-
-'''
-Inject Different fault for each image inside a batch
-'''
-
-
 @tf.function
-def fault_injection_batch(inputs, __num_inj_sites, __available_injection_sites, __masks):
-    # Extract batch Size
-    shape = tf.shape(inputs)
-    batch_size = shape[0]
+def fault_injection_batch_v2(inputs,__num_inj_sites,__available_injection_sites,__masks, error_simulator):
+    shape       = tf.shape(inputs)
+    batch_size  = shape[0]
 
-    # Compute fault on first image
-    init = fault_injection(inputs[0], __num_inj_sites, __available_injection_sites, __masks)
-    i = tf.constant(1)
+    random_indexes = tf.random.uniform(
+        shape=[batch_size], minval=0,
+        maxval=__num_inj_sites, dtype=tf.int32, seed=22)    
+    
+    random_tensor   = tf.gather(__available_injection_sites, random_indexes)
+    random_mask     = tf.gather(__masks, random_indexes)
+    
+    random_indexes = tf.expand_dims(random_indexes, axis = 1)
 
-    '''
-    While exit condition
-    '''
+    error_simulator.history.assign(tf.concat([error_simulator.history, random_indexes], axis = 0))
+    #tf.print(random_tensor.shape,random_mask.shape)
 
-    def condition(i, _):
-        return i < batch_size
-
-    '''
-    While body functiom, execute fault injection on each element of the batch
-    '''
-
-    def iteration(i, outputs):
-        tmp = fault_injection(inputs[i], __num_inj_sites, __available_injection_sites, __masks)
-        outputs = tf.concat([outputs, tmp], 0)
-        i += 1
-        return [i, outputs]
-
-    # Execute a while loop of batch size to apply fault on full batch
-    i, outputs = tf.while_loop(condition, iteration,
-                               [i, init],
-                               [i.get_shape(),
-                                tf.TensorShape([None, init.get_shape()[1], init.get_shape()[2], init.get_shape()[3]])])
-
-    # tf.print(outputs)
-    return outputs
-
-    '''
-    Inject a Fault from the generated injection sites on the selected input
-    '''
-
-
-def fault_injection(inputs, __num_inj_sites, __available_injection_sites, __masks):
-    random_index = tf.random.uniform(
-        shape=[1], minval=0,
-        maxval=__num_inj_sites, dtype=tf.int32, seed=22)
-
-    # print(f"Fault from {self.name}")
-    random_tensor = tf.gather(__available_injection_sites, random_index)
-    random_mask = tf.gather(__masks, random_index)
-
-    # return [inputs[i] * random_mask + random_tensor, random_tensor, random_mask]
-    return inputs * random_mask + random_tensor
+    return (inputs * random_mask + random_tensor), tf.zeros_like(random_mask) #WARNING
 
 
 class ErrorSimulator(tf.keras.layers.Layer):
 
-    def __init__(self, available_injection_sites, masks, num_inj_sites, **kwargs):
+    def __init__(self, available_injection_sites, masks, num_inj_sites,error_ids, **kwargs):
 
         super(ErrorSimulator, self).__init__(**kwargs)
         self.__num_inj_sites = num_inj_sites
         self.__available_injection_sites = []
         self.__masks = []
+        self.error_ids = error_ids
+        self.history = tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1], trainable=False, name="history")
 
         # Parameter to chose between enable/disable faults
-        self.mode = tf.Variable([[int(ErrorSimulatorMode.enabled)]], shape=tf.TensorShape((1, 1)), trainable=False)
+        self.mode = tf.Variable([[int(ErrorSimulatorMode.enabled)]], shape=tf.TensorShape((1, 1)), trainable=False, name="mode") 
 
         for inj_site in available_injection_sites:
             self.__available_injection_sites.append(tf.convert_to_tensor(inj_site, dtype=tf.float32))
@@ -142,16 +118,53 @@ class ErrorSimulator(tf.keras.layers.Layer):
     '''
     Allow to enable or disable the Fault Layer
     '''
-
     def set_mode(self, mode: ErrorSimulatorMode):
         self.mode.assign([[int(mode)]])
 
+    #GET HISTORY OF USED ERROR PATTERN
+    def get_history(self):
+        return self.history.numpy()
+    
+    #CLEAR HISTORY OF USED ERROR PATTERN
+    def clear_history(self):
+        self.history.assign(tf.Variable(initial_value = [[1]], dtype = tf.int32, shape = [None, 1], trainable=False))
+        
+    def get_config(self):
+        config = super().get_config()
+        return config
+    
+    @tf.custom_gradient #NIC_FOR_FAT_PURPOSES
     def call(self, inputs):
         # tf.print("MODE LAYER :", self.mode, tf.constant([[int(ErrorSimulatorMode.disabled)]]), output_stream=sys.stdout)
         # TF operator to check which mode is active
         # If Disabled => Return Vanilla output
         # If Enabled  => Return Faulty  output
-        return tf.cond(self.mode == tf.constant([[int(ErrorSimulatorMode.disabled)]]),
-                       true_fn=lambda: inputs,
-                       false_fn=lambda: fault_injection_batch(inputs, self.__num_inj_sites,
-                                                              self.__available_injection_sites, self.__masks))
+        
+        a = tf.cond(self.mode == tf.constant([[int(ErrorSimulatorMode.disabled)]]), 
+                       true_fn=lambda: (inputs, tf.ones_like(inputs)),
+                       false_fn=lambda: fault_injection_batch_v2(inputs,self.__num_inj_sites,self.__available_injection_sites,self.__masks, self))
+        
+        
+        #NIC_FOR_CUSTOM_GRADIENT
+        
+        def grad(upstream):
+            return tf.multiply(upstream, a[1])
+        '''
+        def grad(upstream):
+            return upstream
+        '''
+        return a[0], grad
+    
+
+
+           
+        '''
+
+        #NIC_FOR_CUSTOM_GRADIENT
+        def grad(upstream):
+            mask = tf.cond(self.mode == tf.constant([[int(ErrorSimulatorMode.disabled)]]), 
+                       true_fn=lambda: tf.ones_like(inputs),
+                       false_fn=lambda: tf.zeros_like(inputs))
+            
+            return  tf.multiply(mask,upstream) 
+        '''

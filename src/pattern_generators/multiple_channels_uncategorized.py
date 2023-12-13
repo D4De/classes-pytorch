@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 
 import numpy as np
-from src.pattern_generators.generator_utils import clamp, convert_to_linearized_index, random_channels, random_int_from_pct_range
+from .generator_utils import clamp, convert_to_linearized_index, random_channels, random_int_from_pct_range
 
 
 def multiple_channels_uncategorized_generator(output_shape : List[int], params : Dict[str, Any]) -> Optional[List[int]]:

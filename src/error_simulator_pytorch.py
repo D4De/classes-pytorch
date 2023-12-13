@@ -2,7 +2,7 @@ from .injection_sites_generator import *
 import torch.nn as nn
 import torch
 
-from src.loggers import get_logger
+from .loggers import get_logger
 
 logger = get_logger("ErrorSimulator")
 

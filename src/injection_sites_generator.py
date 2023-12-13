@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import os
 import json
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
+
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import struct
-from src.pattern_generators import generator_functions
+from .pattern_generators import generator_functions
 
-from src.utils import random_choice, unpack_table
-from src.loggers import get_logger
+from .utils import random_choice, unpack_table
+from .loggers import get_logger
 # from src.visualize import visualize
 
 logger = get_logger('InjectionSiteGenerator')
@@ -144,12 +149,19 @@ class InjectionSite(object):
         self.__operator_name = operator_name
         self.__indexes : List[List[int]] = []
         self.__values : List[InjectionValue] = []
+        self.__pattern: str = "-"
         self.__output_shape = output_shape
 
     def add_injection(self, index, value):
         self.__indexes.append(index)
         self.__values.append(value)
 
+    def add_pattern(self,pattern):
+        self.__pattern = pattern
+
+    def get_pattern(self):
+        return self.__pattern
+    
     def __iter__(self):
         self.__iterator = zip(self.__indexes, self.__values)
         return self
@@ -237,8 +249,11 @@ class InjectionSitesGenerator(object):
                     logger.info(f"Injection details. Spatial: {spatial_class} {spatial_parameters} Domain: {domain_class}. Cardinality: {len(spatial_positions)} Channel Count: {channel_count}")
                     logger.debug(spatial_positions)
                     corrupted_values = self.__generate_domains(domain_class, len(spatial_positions))
+
                     for idx, value in zip(spatial_positions, corrupted_values):
-                        injection_site.add_injection(idx, value)                
+                        injection_site.add_injection(idx, value)    
+
+                    injection_site.add_pattern(spatial_class)      
                     injection_sites.append(injection_site)
                     extracted = True
                 except Exception as e:

@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Tuple, Optional
 
 import numpy as np
 
-from src.pattern_generators.generator_utils import convert_to_linearized_index
+from .generator_utils import convert_to_linearized_index
 
 logger = logging.getLogger(__name__)
 

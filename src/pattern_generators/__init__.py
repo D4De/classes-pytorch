@@ -1,17 +1,17 @@
 from typing import Any, Callable, Dict, List, Optional
-from src.pattern_generators.bullet_wake import bullet_wake_generator
-from src.pattern_generators.multiple_channels_multi_block import multiple_channels_multi_block_generator
-from src.pattern_generators.same_column import same_row_generator
-from src.pattern_generators.shattered_channel import shattered_channel_generator
-from src.pattern_generators.single_channel_alternate_blocks import single_channel_alternated_block_generator
-from src.pattern_generators.single import single_generator
-from src.pattern_generators.full_channels import full_channels_generator
-from src.pattern_generators.rectangles import rectangles_generator
-from src.pattern_generators.same_row import same_row_generator
-from src.pattern_generators.single_block import single_block_generator
-from src.pattern_generators.single_channel_random import single_channel_random_generator
-from src.pattern_generators.skip_4 import skip_4_generator
-from src.pattern_generators.multiple_channels_uncategorized import multiple_channels_uncategorized_generator
+from .bullet_wake import bullet_wake_generator
+from .multiple_channels_multi_block import multiple_channels_multi_block_generator
+from .same_column import same_row_generator
+from .shattered_channel import shattered_channel_generator
+from .single_channel_alternate_blocks import single_channel_alternated_block_generator
+from .single import single_generator
+from .full_channels import full_channels_generator
+from .rectangles import rectangles_generator
+from .same_row import same_row_generator
+from .single_block import single_block_generator
+from .single_channel_random import single_channel_random_generator
+from .skip_4 import skip_4_generator
+from .multiple_channels_uncategorized import multiple_channels_uncategorized_generator
 
 
 generator_functions : Dict[str, Callable[[List[int], Dict[str, Any]], Optional[List[int]]]] = {
