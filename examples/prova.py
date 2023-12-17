@@ -1,5 +1,5 @@
 from classes_core.error_simulator_keras import ErrorSimulator, create_injection_sites_layer_simulator
-
+import classes_core  
 '''
 def check_classes_layer_compatibility_dev(layer):
         if isinstance(layer,keras.layers.BatchNormalization):
@@ -16,12 +16,13 @@ def check_classes_layer_compatibility_dev(layer):
             return None
 '''
 
-original_models_path = ".."
-class CLASSES_MODELS_PATH:
-    models      = original_models_path + "/models"
-    models_warp = original_models_path + "/models_warp"
-    models_warp = original_models_path + "/models"#CLASSES_DEV UPDATE
 
+class CLASSES_MODELS_PATH:
+    models      = classes_core.warp_model_path
+    models_warp = classes_core.warp_model_path
+    models_warp = classes_core.warp_model_path
+
+print(CLASSES_MODELS_PATH.models)
 
 layer_type = 'conv_gemm'
 layer_output_shape_cf = '(None, 16, 27, 27)'

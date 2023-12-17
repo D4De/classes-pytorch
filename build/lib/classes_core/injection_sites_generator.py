@@ -14,10 +14,9 @@ from .pattern_generators import generator_functions
 
 from .utils import random_choice, unpack_table
 from .loggers import get_logger
-from visualize import visualize
+# from src.visualize import visualize
 
-logger = get_logger("InjectionSiteGenerator")
-
+logger = get_logger('InjectionSiteGenerator')
 
 class InjectableSite(object):
     """
@@ -25,7 +24,7 @@ class InjectableSite(object):
     the TensorFlow's operator graph name and the size of the output tensor.
     """
 
-    def __init__(self, operator_name: str, size: str):
+    def __init__(self, operator_name : str, size : str):
         """
         Creates the object with the operator type, name and size.
 
@@ -50,9 +49,8 @@ class InjectableSite(object):
             self.__size = str(tuple([1] * remainder + list(tuple_size)))
 
     def __repr__(self):
-        return "InjectableSite[Type: {}, Name: {}, Size: {}]".format(
-            self.__operator_name, self.__size
-        )
+        return "InjectableSite[Type: {}, Name: {}, Size: {}]".format(self.__operator_name,
+                                                                     self.__size)
 
     def __str__(self):
         return self.__repr__()
@@ -101,21 +99,18 @@ class InjectionValue(object):
     def out_of_range():
         bitstring = "".join(np.random.choice(["0", "1"], size=32))
         integer_bitstring = int(bitstring, base=2)
-        float_bitstring = np.frombuffer(np.array(integer_bitstring), dtype=np.float32)[
-            0
-        ]
+        float_bitstring = np.frombuffer(np.array(integer_bitstring), dtype=np.float32)[0]
         return InjectionValue(InjectionValue.OUT_OF_RANGE, np.float32(float_bitstring))
+    
+
 
     def __init__(self, value_type, raw_value):
-        self.__value_type: Literal[1, 2, 3, 4] = value_type
-        self.__raw_value: np.float32 = raw_value
+        self.__value_type : Literal[1,2,3,4] = value_type
+        self.__raw_value : np.float32 = raw_value
 
     def __str__(self):
-        return "({}, {})".format(
-            self.__value_type,
-            hex(struct.unpack("<I", struct.pack("<f", self.__raw_value))[0]),
-        )
-
+        return "({}, {})".format(self.__value_type, hex(struct.unpack('<I', struct.pack('<f', self.__raw_value))[0]))
+    
     def __repr__(self):
         return f"(Inj. Value type: {self.__value_type} Value: {self.__raw_value})"
 
@@ -123,24 +118,23 @@ class InjectionValue(object):
         if self.__value_type == InjectionValue.ZERO:
             return 0.0
         elif self.__value_type == InjectionValue.NAN:
-            return float("nan")
+            return float('nan')
         elif self.__value_type == InjectionValue.IN_RANGE:
             return range_min + self.__raw_value * (range_max - range_min)
         else:
             if range_min <= self.__raw_value <= range_max:
-                return self.__raw_value + (range_max - range_min) * np.random.choice(
-                    [-1, 1]
-                ) * np.random.uniform(2.0, 600.0)
+                return self.__raw_value + (range_max - range_min) * np.random.choice([-1, 1]) * np.random.uniform(2.0, 600.0)
             else:
                 return self.__raw_value
 
     @property
     def value_type(self):
         return self.__value_type
-
+    
     @property
     def raw_value(self):
         return self.__raw_value
+
 
 
 class InjectionSite(object):
@@ -176,7 +170,7 @@ class InjectionSite(object):
         return len(self.__indexes)
 
     def __repr__(self):
-        return f"{self.__operator_name} {self.__indexes} {self.__values}"
+        return f'{self.__operator_name} {self.__indexes} {self.__values}'
 
     def next(self):
         next_element = next(self.__iterator)
@@ -187,12 +181,6 @@ class InjectionSite(object):
 
     def get_indexes_values(self) -> Iterable[Tuple[List[int], InjectionValue]]:
         return zip(self.__indexes, self.__values)
-
-    def get_indexes(self) -> Iterable[List[int]]:
-        return self.__indexes
-
-    def get_values(self, range_min, range_max) -> list:
-        return [val.get_value(range_min, range_max) for val in self.__values]
 
     def as_indexes_list(self) -> List[int]:
         return list(self.__indexes)
@@ -205,59 +193,38 @@ class InjectionSite(object):
             json_representation[str(index)] = str(value)
         json_representation["operator_name"] = self.__operator_name
         return json_representation
-
-    def visualize(self, output_path: str):
+    
+    def visualize(self, output_path : str):
         tensor_diff = np.zeros(self.__output_shape)
         faulty_channels = set()
         for i in range(len(self)):
             n, c, h, w = self.__indexes[i]
             faulty_channels.add(c)
             tensor_diff[n, c, h, w] = self.__values[i].value_type
-        visualize(
-            tensor_diff,
-            faulty_channels,
-            "NCHW",
-            output_path,
-            save=True,
-            invalidate=True,
-        )
-
+        visualize(tensor_diff, faulty_channels, 'NCHW', output_path, save=True, invalidate=True)
 
 MAX_FAILED_ATTEMPTS_IN_A_ROW = 20
 
 
 class InjectionSitesGenerator(object):
-    def __init__(
-        self,
-        injectable_sites,
-        models_folder: str = "/models",
-        fixed_spatial_class: Optional[str] = None,
-        fixed_domain_class: Optional[dict] = None,
-    ):
+    def __init__(self, injectable_sites, models_folder: str = '/models', fixed_spatial_class : Optional[str] = None, fixed_domain_class : Optional[dict] = None):
         self.__injectable_sites = injectable_sites
         self.__models = self.__load_models(models_folder)
         self.__fixed_spatial_class = fixed_spatial_class
         self.__fixed_domain_class = fixed_domain_class
 
-    def generate_random_injection_sites(
-        self,
-        size: int,
-        fixed_spatial_class: Optional[str] = None,
-        fixed_domain_class: Optional[dict] = None,
-        return_pattern_details=False,
-    ) -> List[InjectionSite]:
-        injectables_site_indexes = np.random.choice(
-            len(self.__injectable_sites), size=size
-        )
+    def generate_random_injection_sites(self, size: int, fixed_spatial_class : Optional[str] = None, fixed_domain_class : Optional[dict] = None) -> List[InjectionSite]:
+
+        injectables_site_indexes = np.random.choice(len(self.__injectable_sites), size=size)
         injection_sites = []
 
         for index in injectables_site_indexes:
             extracted = False
             attempts = 0
-            while not extracted and attempts < MAX_FAILED_ATTEMPTS_IN_A_ROW:
+            while not extracted and attempts < MAX_FAILED_ATTEMPTS_IN_A_ROW: 
                 try:
                     injectable_site = self.__injectable_sites[index]
-                    operator_name = injectable_site.operator_name
+                    operator_name = injectable_site.operator_name  
                     output_shape = eval(injectable_site.size)
                     injection_site = InjectionSite(operator_name, output_shape)
                     if fixed_spatial_class is not None:
@@ -271,26 +238,15 @@ class InjectionSitesGenerator(object):
                     if self.__fixed_domain_class is not None:
                         domain_class = self.__fixed_domain_class
                     else:
-                        domain_class = self.__select_domain_class(
-                            operator_name, spatial_class
-                        )
-                    spatial_parameters = self.__select_spatial_parameters(
-                        operator_name, spatial_class
-                    )
-                    spatial_positions = self.__generate_spatial_pattern(
-                        spatial_class, output_shape, spatial_parameters
-                    )
+                        domain_class = self.__select_domain_class(operator_name, spatial_class)
+                    spatial_parameters = self.__select_spatial_parameters(operator_name, spatial_class)
+                    spatial_positions = self.__generate_spatial_pattern(spatial_class, output_shape, spatial_parameters)
                     if spatial_positions is None:
-                        logger.error(
-                            f"Injection attempt #{attempts + 1} failed. Params {spatial_class=} {spatial_parameters=} {output_shape=}"
-                        )
-
+                        logger.warn(f"Injection attempt #{attempts + 1} failed. Params {spatial_class} {spatial_parameters} {output_shape}")
                         raise RuntimeError("Injection attempt failed")
 
                     channel_count = len(set(sp_pos[1] for sp_pos in spatial_positions))
-                    logger.info(
-                        f"Injection details. Spatial: {spatial_class} {spatial_parameters} Domain: {domain_class}. Cardinality: {len(spatial_positions)} Channel Count: {channel_count}"
-                    )
+                    logger.info(f"Injection details. Spatial: {spatial_class} {spatial_parameters} Domain: {domain_class}. Cardinality: {len(spatial_positions)} Channel Count: {channel_count}")
                     logger.debug(spatial_positions)
                     corrupted_values = self.__generate_domains(domain_class, len(spatial_positions))
 
@@ -306,74 +262,41 @@ class InjectionSitesGenerator(object):
                 finally:
                     attempts += 1
             if attempts == MAX_FAILED_ATTEMPTS_IN_A_ROW:
-                logger.error(
-                    f"Injection failed {MAX_FAILED_ATTEMPTS_IN_A_ROW}. Aborting"
-                )
-                raise RuntimeError(
-                    f"Failed to inject {MAX_FAILED_ATTEMPTS_IN_A_ROW} in a row"
-                )
-        if return_pattern_details:
-            return injection_sites, (
-                spatial_class,
-                spatial_parameters,
-                domain_class,
-                channel_count,
-            )
-        else:
-            return injection_sites
-
-    def __select_spatial_class(self, operator_name: str) -> str:
+                logger.error(f"Injection failed {MAX_FAILED_ATTEMPTS_IN_A_ROW}. Aborting")
+                raise RuntimeError(f"Failed to inject {MAX_FAILED_ATTEMPTS_IN_A_ROW} in a row")
+        return injection_sites
+    
+    def __select_spatial_class(self, operator_name : str) -> str:
         if operator_name not in self.__models:
-            raise KeyError(
-                f"Operator {operator_name} does not exists. Check if a file name {operator_name}.json is included in the selected model folder."
-            )
+            raise KeyError(f"Operator {operator_name} does not exists. Check if a file name {operator_name}.json is included in the selected model folder.")
         sp_classes, sp_class_description = unpack_table(self.__models[operator_name])
         sp_classes_freqs = [desc["frequency"] for desc in sp_class_description]
         return random_choice(sp_classes, p=sp_classes_freqs)
-
-    def __select_domain_class(
-        self, operator_name: str, spatial_class: str
-    ) -> Dict[str, Any]:
-        dom_classes: List[Dict[str, Any]] = self.__models[operator_name][spatial_class][
-            "domain_classes"
-        ]
+    
+    def __select_domain_class(self, operator_name : str, spatial_class : str) -> Dict[str, Any]:
+        dom_classes : List[Dict[str, Any]] = self.__models[operator_name][spatial_class]["domain_classes"]
         return random_choice(dom_classes, p=[dc["frequency"] for dc in dom_classes])
 
-    def __select_spatial_parameters(
-        self, operator_name: str, spatial_class: str
-    ) -> Dict[str, Any]:
-        sp_parameters: List[Dict[str, Any]] = self.__models[operator_name][
-            spatial_class
-        ]["parameters"]
-        selected_params = random_choice(
-            sp_parameters, p=[dc["conditional_frequency"] for dc in sp_parameters]
-        )
+    def __select_spatial_parameters(self, operator_name : str, spatial_class : str) -> Dict[str, Any]:
+        sp_parameters : List[Dict[str, Any]] = self.__models[operator_name][spatial_class]["parameters"]
+        selected_params = random_choice(sp_parameters, p=[dc["conditional_frequency"] for dc in sp_parameters])        
         return {**selected_params["keys"], **selected_params["stats"]}
 
-    def __generate_spatial_pattern(
-        self, spatial_class: str, output_shape: List[int], parameters: Dict[str, Any]
-    ) -> Optional[List[Iterable[int]]]:
-        is_random = any(
-            isinstance(val, dict) and "RANDOM" in val for val in parameters.values()
-        )
+
+    def __generate_spatial_pattern(self, spatial_class : str, output_shape : List[int], parameters : Dict[str, Any]) -> Optional[List[Iterable[int]]]:
+        is_random = any(isinstance(val, dict) and "RANDOM" in val for val in parameters.values())
         if is_random:
             parameters = self.__realize_random_parameters(parameters)
         if spatial_class in generator_functions:
-            raveled_positions = generator_functions[spatial_class](
-                output_shape, parameters
-            )
+            raveled_positions = generator_functions[spatial_class](output_shape, parameters)
             if raveled_positions is None:
-                return None
-            return [
-                np.unravel_index(rp, shape=output_shape) for rp in raveled_positions
-            ]
+                return None 
+            return [np.unravel_index(rp, shape=output_shape) for rp in raveled_positions]
         else:
-            raise NotImplementedError(
-                f"{spatial_class} generator is not implemented. Check if it was included in src/pattern_generators/__init__.py dictionary"
-            )
-
-    def __generate_domains(self, domain_class: str, cardinality: int):
-        def inj_value_from_name(name: str):
+            raise NotImplementedError(f"{spatial_class} generator is not implemented. Check if it was included in src/pattern_generators/__init__.py dictionary")
+        
+    def __generate_domains(self, domain_class : str, cardinality : int):
+        def inj_value_from_name(name : str):
             if name == "flip" or name == "out_of_range":
                 return InjectionValue.out_of_range()
             if name == "zero":
@@ -384,43 +307,35 @@ class InjectionSitesGenerator(object):
                 return InjectionValue.nan()
             else:
                 raise ValueError(f"{name} class does not exists")
-
+            
+        
         if "random" in domain_class:
             val_class, freq = unpack_table(domain_class["values"])
 
-            random_val_classes = random_choice(
-                len(val_class), size=cardinality, replace=True, p=freq
-            )
+            random_val_classes = random_choice(len(val_class), size=cardinality, replace=True, p=freq)
 
-            return [
-                inj_value_from_name(val_class[vc_id]) for vc_id in random_val_classes
-            ]
+
+            return [inj_value_from_name(val_class[vc_id]) for vc_id in random_val_classes]
 
         value_frequencies = dict(domain_class)
         if "count" in value_frequencies:
             del value_frequencies["count"]
-        if "frequency" in value_frequencies:
+        if "frequency" in value_frequencies:    
             del value_frequencies["frequency"]
         value_classes, freq_ranges = unpack_table(value_frequencies)
         if len(value_classes) == 1:
-            return [inj_value_from_name(value_classes[0]) for i in range(cardinality)]
+          return [inj_value_from_name(value_classes[0]) for i in range(cardinality)]
         elif len(value_classes) == 2:
             rand_freq_1 = np.random.uniform(*freq_ranges[0])
             rand_freq_2 = 100 - rand_freq_1
-            random_val_classes = random_choice(
-                2, size=cardinality, replace=True, p=[rand_freq_1, rand_freq_2]
-            )
-            return [
-                inj_value_from_name(value_classes[vc_id])
-                for vc_id in random_val_classes
-            ]
+            random_val_classes = random_choice(2, size=cardinality, replace=True, p=[rand_freq_1, rand_freq_2])
+            return [inj_value_from_name(value_classes[vc_id]) for vc_id in random_val_classes]
         else:
-            raise NotImplementedError(
-                "More than two value classes are not yet supported. Please make them fallback to random or implement code to support them"
-            )
+            raise NotImplementedError("More than two value classes are not yet supported. Please make them fallback to random or implement code to support them")
 
-    def __realize_random_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        realized_params: Dict[str, Any] = {}
+
+    def __realize_random_parameters(self, parameters : Dict[str, Any]) -> Dict[str, Any]:
+        realized_params : Dict[str, Any] = {}
 
         # There could be some keys that specify a minumum and a maximum constraint for a parameters (example min_span_width, max_span_width)
         # In this case the values that we randomly extract from a minium or a maximum value must be coherent (the max should be >= than the min)
@@ -454,13 +369,9 @@ class InjectionSitesGenerator(object):
                         dual_parameter_value = realized_params[dual_parameter]
                         # Filter out the random values that not follow the constraints
                         if constraint == "min":
-                            eligible_values = [
-                                rv for rv in random_values if rv >= dual_parameter_value
-                            ]
+                            eligible_values = [rv for rv in random_values if rv >= dual_parameter_value]
                         else:
-                            eligible_values = [
-                                rv for rv in random_values if rv <= dual_parameter_value
-                            ]
+                            eligible_values = [rv for rv in random_values if rv <= dual_parameter_value]
                         # For avoiding errors we add the constraint if no values were eligible
                         if len(eligible_values) == 0:
                             eligible_values = [dual_parameter_value]
@@ -475,20 +386,19 @@ class InjectionSitesGenerator(object):
 
         return realized_params
 
+    
     def __load_models(self, models_folder):
-        spatial_models: Dict[str, Any] = {}
-        available_operators = [
-            file[:-5] for file in os.listdir(models_folder) if file.endswith(".json")
-        ]
+        spatial_models : Dict[str, Any] = {}
+        available_operators = [file[:-5] for file in os.listdir(models_folder) if file.endswith(".json")]
 
         for model_operator_name in available_operators:
-            spatial_model_path = os.path.join(
-                models_folder, f"{model_operator_name}.json"
-            )
+            
+            spatial_model_path = os.path.join(models_folder,
+                                              f'{model_operator_name}.json')
             with open(spatial_model_path, "r") as spatial_model_json:
                 spatial_model = json.load(spatial_model_json)
-                spatial_models[model_operator_name] = {
-                    k: v for k, v in spatial_model.items() if not k.startswith("_")
-                }
+                spatial_models[model_operator_name] = {k : v for k, v in spatial_model.items() if not k.startswith("_")}
 
         return spatial_models
+
+

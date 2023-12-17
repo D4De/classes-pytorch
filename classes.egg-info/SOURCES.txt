@@ -40,13 +40,3 @@ classes_core/pattern_generators/single_block.py
 classes_core/pattern_generators/single_channel_alternate_blocks.py
 classes_core/pattern_generators/single_channel_random.py
 classes_core/pattern_generators/skip_4.py
-models/avgpool.json
-models/batchnorm.json
-models/bias_add.json
-models/clipped_relu.json
-models/conv_gemm.json
-models/elu.json
-models/maxpool.json
-models/relu.json
-models/sigmoid.json
-models/tanh.json

@@ -1,11 +1,7 @@
 from typing import Optional
 import tensorflow as tf
 import numpy as np
-from .injection_sites_generator import (
-    InjectableSite,
-    InjectionSitesGenerator,
-    InjectionValue,
-)
+from .injection_sites_generator import InjectableSite, InjectionSitesGenerator, InjectionValue
 from enum import IntEnum
 import sys
 from tqdm import tqdm
@@ -30,11 +26,11 @@ def create_injection_sites_layer_simulator(
     
     
     def __generate_injection_sites(sites_count: int, layer_type: str, size: int):
+
         injection_site = InjectableSite(layer_type, size)
 
-        injection_sites = InjectionSitesGenerator(
-            [injection_site], models_folder, fixed_spatial_class, fixed_domain_class
-        ).generate_random_injection_sites(sites_count)
+        injection_sites = InjectionSitesGenerator([injection_site], models_folder, fixed_spatial_class,
+                                                  fixed_domain_class).generate_random_injection_sites(sites_count)
 
         return injection_sites
 
@@ -44,8 +40,7 @@ def create_injection_sites_layer_simulator(
         logger.warn(
             f"""range_min and/or range_max are not specified, so their default values will be kept ({range_min}, {range_max}). 
                         You may want to change the defaults by calculating the average range_min and range_max average, 
-                        and specify them as inputs of this function. """
-        )
+                        and specify them as inputs of this function. """)
 
     available_injection_sites = []
     masks = []
@@ -65,9 +60,7 @@ def create_injection_sites_layer_simulator(
             for idx, value in curr_injection_sites[0].get_indexes_values():
                 channel_last_idx = (idx[0], idx[2], idx[3], idx[1])
                 curr_mask[channel_last_idx[1:]] = 0
-                curr_inj_nump[channel_last_idx[1:]] += value.get_value(
-                    range_min, range_max
-                )
+                curr_inj_nump[channel_last_idx[1:]] += value.get_value(range_min, range_max)
 
             available_injection_sites.append(curr_inj_nump)
             masks.append(curr_mask)
@@ -80,7 +73,7 @@ def create_injection_sites_layer_simulator(
 
 
 class ErrorSimulatorMode(IntEnum):
-    disabled = (1,)
+    disabled = 1,
     enabled = 2
 
 @tf.function
@@ -118,9 +111,7 @@ class ErrorSimulator(tf.keras.layers.Layer):
         self.mode = tf.Variable([[int(ErrorSimulatorMode.enabled)]], shape=tf.TensorShape((1, 1)), trainable=False, name="mode") 
 
         for inj_site in available_injection_sites:
-            self.__available_injection_sites.append(
-                tf.convert_to_tensor(inj_site, dtype=tf.float32)
-            )
+            self.__available_injection_sites.append(tf.convert_to_tensor(inj_site, dtype=tf.float32))
         for mask in masks:
             self.__masks.append(tf.convert_to_tensor(mask, dtype=tf.float32))
 
