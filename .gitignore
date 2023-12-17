@@ -1,5 +1,5 @@
 .DS_STORE
-src/__pycache__
+classes_core/__pycache__
 .idea
 examples/pytorch/mnist_data
 examples/pytorch/data/MNIST
@@ -8,3 +8,4 @@ load.py
 __pycache__
 .venv
 .venv_tf
+./build
