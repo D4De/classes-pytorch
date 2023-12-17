@@ -31,16 +31,24 @@ class CampaignStatistics(object):
             total_count += self.__stats[outcome]
         for outcome in self.__stats:
             if outcome != Outcome.RAW_VALUE:
-                reduced_stats[outcome] = float(self.__stats[outcome]) / float(total_measurable_count)
+                reduced_stats[outcome] = float(self.__stats[outcome]) / float(
+                    total_measurable_count
+                )
             else:
-                reduced_stats[outcome] = float(self.__stats[outcome]) / float(total_count)
+                reduced_stats[outcome] = float(self.__stats[outcome]) / float(
+                    total_count
+                )
         return reduced_stats
 
     def __str__(self):
         reduced_stats = self.reduce()
         fields = []
         for outcome in reduced_stats:
-            fields.append("{} - {:.6f} - {}".format(outcome.name, reduced_stats[outcome], self.__stats[outcome]))
+            fields.append(
+                "{} - {:.6f} - {}".format(
+                    outcome.name, reduced_stats[outcome], self.__stats[outcome]
+                )
+            )
         return "\n".join(fields)
 
 
@@ -54,7 +62,9 @@ class Outcome(enum.IntEnum):
         self.set_values(0, "", [])
 
     def __str__(self):
-        return "{} - Run count: {} - Operator: {}".format(self.name, self.run_count, self.operator_name)
+        return "{} - Run count: {} - Operator: {}".format(
+            self.name, self.run_count, self.operator_name
+        )
 
     def __hash__(self):
         return hash(self.value)
@@ -147,7 +157,7 @@ class FaultInjector(object):
             "Conv2D3x3",
             "Conv2D3x3S2",
             "Conv2D_test",
-            "FusedBatchNorm_test"
+            "FusedBatchNorm_test",
         ]
 
     def instrument(self, fetches, feeds):
@@ -183,97 +193,137 @@ class FaultInjector(object):
             return inputs
 
         start_time = time.time()  # Start time of the instrumentation phase.
-        activations_graph = tf.Graph()  # Creates a new graph, which will be used to extract the activated operators.
-        activations_fault_map = {}  # Creates a map among the original graph operators and the activation graph.
+        activations_graph = (
+            tf.Graph()
+        )  # Creates a new graph, which will be used to extract the activated operators.
+        activations_fault_map = (
+            {}
+        )  # Creates a map among the original graph operators and the activation graph.
         # Activation graph and fault map are temporary, will be destroyed at the end of the instrumentation phase.
         with activations_graph.as_default():
             # Sets the activation graph as default so any insertion will be done in that graph.
             with activations_graph.name_scope(
-                    "act"):  # Sets the name scope as "act" so each new node will have that prefix.
+                "act"
+            ):  # Sets the name scope as "act" so each new node will have that prefix.
                 # Slides through each operator of the original graph.
                 for idx, operation in enumerate(self.__old_graph.get_operations()):
                     # print("Operazione numero: ", idx)
                     # Returns the control inputs of the operator according the activations fault map.
                     # Control inputs are nodes that need to be executed before the current one.
-                    replicated_control_inputs = self.__get_replicated_inputs(operation.control_inputs,
-                                                                             fault_map=activations_fault_map)
+                    replicated_control_inputs = self.__get_replicated_inputs(
+                        operation.control_inputs, fault_map=activations_fault_map
+                    )
                     # Checks if the operator type is one of the injectable.
                     if str(operation.type) in self.__injectable_operators:
                         # Instantiates the passthrough function in the activations graph.
                         # The inputs are the name and type of the operator.
                         activation_operation = tf.py_func(
                             activation,
-                            [tf.constant(operation.name, dtype=tf.string),
-                             tf.constant(str(operation.type), dtype=tf.string)],
-                            [tf.string, tf.string]
+                            [
+                                tf.constant(operation.name, dtype=tf.string),
+                                tf.constant(str(operation.type), dtype=tf.string),
+                            ],
+                            [tf.string, tf.string],
                         )[0].op
                         # Forces the passthrough function to be a dependency for the current operator,
                         # so it will be executed before the operator.
                         replicated_control_inputs.append(activation_operation)
                     # Enforces the dependency.
-                    with activations_graph.control_dependencies(replicated_control_inputs):
+                    with activations_graph.control_dependencies(
+                        replicated_control_inputs
+                    ):
                         # Gets the operator inputs according the activation fault map.
-                        replicated_inputs = self.__get_replicated_inputs(operation.inputs,
-                                                                         fault_map=activations_fault_map)
+                        replicated_inputs = self.__get_replicated_inputs(
+                            operation.inputs, fault_map=activations_fault_map
+                        )
                         # Creates the operator replica.
                         replicated_operation = self.__create_operator_replica(
-                            activations_graph,
-                            operation,
-                            replicated_inputs
+                            activations_graph, operation, replicated_inputs
                         )
                         # Adds pairs of original output and replicated output in the activations fault map.
-                        self.__set_replicated_outputs(zip(operation.outputs, replicated_operation.outputs),
-                                                      fault_map=activations_fault_map)
+                        self.__set_replicated_outputs(
+                            zip(operation.outputs, replicated_operation.outputs),
+                            fault_map=activations_fault_map,
+                        )
                         # Sets the replicated operation in the activations fault map.
                         activations_fault_map[operation.name] = replicated_operation
                 # Creates a temporary TensorFlow's session with the memory configuration.
-                with tf.Session(graph=activations_graph, config=self.__memory_configuration) as activations_session:
+                with tf.Session(
+                    graph=activations_graph, config=self.__memory_configuration
+                ) as activations_session:
                     # Resets the list and the dictionary.
                     self.__activated_operations = []
                     self.__operations_histogram = {}
                     # Transfers the parameters from the original session to the temporary.
                     self.__assign_parameters(activations_session, "act/")
                     # Executes the model with the fetches and feeds.
-                    self.__run(fetches, feed_dict=feeds, session=activations_session, fault_map=activations_fault_map)
+                    self.__run(
+                        fetches,
+                        feed_dict=feeds,
+                        session=activations_session,
+                        fault_map=activations_fault_map,
+                    )
         # After the run, is possible to extract the activated operators from the histogram and build a data-structure
         # that is usable by the InjectionSitesGenerator.
         self.__extract_injectable_sites(self.__old_graph, self.__operations_histogram)
         with open("injectable_sites.json", "w") as injectable_sites_json_file:
-            json.dump(self.__injectable_sites, injectable_sites_json_file, sort_keys=True)
-        self.__fault_graph = tf.Graph()  # Creates a new graph, which will used for the error injections.
+            json.dump(
+                self.__injectable_sites, injectable_sites_json_file, sort_keys=True
+            )
+        self.__fault_graph = (
+            tf.Graph()
+        )  # Creates a new graph, which will used for the error injections.
         self.__fault_map = {}  # Creates a new fault map.
-        self.__fault_fetches = {}  # Creates a new fetches fault map, among the original fetches and the replicated ones
+        self.__fault_fetches = (
+            {}
+        )  # Creates a new fetches fault map, among the original fetches and the replicated ones
         with self.__fault_graph.as_default():  # Sets the fault graph as default.
-            with self.__fault_graph.name_scope("fi"):  # Sets a new prefix for the graph nodes.
+            with self.__fault_graph.name_scope(
+                "fi"
+            ):  # Sets a new prefix for the graph nodes.
                 # Slides through each operator.
                 for operation in self.__old_graph.get_operations():
                     # Gets the replicated control inputs.
-                    replicated_control_inputs = self.__get_replicated_inputs(operation.control_inputs)
+                    replicated_control_inputs = self.__get_replicated_inputs(
+                        operation.control_inputs
+                    )
                     # Enforce the dependency constraint to be met.
-                    with self.__fault_graph.control_dependencies(replicated_control_inputs):
+                    with self.__fault_graph.control_dependencies(
+                        replicated_control_inputs
+                    ):
                         # Gets the replicated inputs from the fault map.
-                        replicated_inputs = self.__get_replicated_inputs(operation.inputs)
+                        replicated_inputs = self.__get_replicated_inputs(
+                            operation.inputs
+                        )
                         # Replicates the operator.
                         replicated_operation = self.__create_operator_replica(
-                            self.__fault_graph,
-                            operation,
-                            replicated_inputs
+                            self.__fault_graph, operation, replicated_inputs
                         )
                         replicated_outputs = replicated_operation.outputs
                         # Sets the outputs in the fault map and fetches.
                         self.__fault_fetches[operation.name] = replicated_outputs
-                        self.__set_replicated_outputs(zip(operation.outputs, replicated_outputs))
+                        self.__set_replicated_outputs(
+                            zip(operation.outputs, replicated_outputs)
+                        )
                         self.__fault_map[operation.name] = replicated_operation
         # Creates the fault session and assigns the parameters from the original session to the fault one.
-        self.__fault_session = tf.Session(graph=self.__fault_graph, config=self.__memory_configuration)
+        self.__fault_session = tf.Session(
+            graph=self.__fault_graph, config=self.__memory_configuration
+        )
         self.__assign_parameters(self.__fault_session, "fi/")
         end_time = time.time()
         print("Instrumentation time: {:.5f} s".format(end_time - start_time))
-        print("{} operations have been activated".format(sum([len(i) for i in self.__injectable_sites.values()])))
+        print(
+            "{} operations have been activated".format(
+                sum([len(i) for i in self.__injectable_sites.values()])
+            )
+        )
         # Sets that the instrumentation has been concluded.
         self.__instrumentation_done = True
 
-    def generate_injection_sites(self, mode, size, operator_type=None, models_mode='', **kwargs):
+    def generate_injection_sites(
+        self, mode, size, operator_type=None, models_mode="", **kwargs
+    ):
         """
         Generates the injection sites, after the instrumentation phase, according to the mode given.\n
         Mode "RANDOM": creates the injection sites by considering all the operators.\n
@@ -336,7 +386,11 @@ class FaultInjector(object):
                 for elem in dic[key]:
                     # Convert each injectble site from dictionary to the class.
                     try:
-                        injectable_sites_class.append(InjectableSite(OperatorType[key], elem["name"], elem["size"]))
+                        injectable_sites_class.append(
+                            InjectableSite(
+                                OperatorType[key], elem["name"], elem["size"]
+                            )
+                        )
                     except KeyError:
                         pass
             return injectable_sites_class
@@ -345,7 +399,8 @@ class FaultInjector(object):
             # Instanties the InjectionSitesGenerator and generates a random injection with the injectable sites and
             # the campaign size.
             self.__injection_sites = InjectionSitesGenerator(
-                to_injectable_site(self.__injectable_sites)).generate_random_injection_sites(size)
+                to_injectable_site(self.__injectable_sites)
+            ).generate_random_injection_sites(size)
         elif mode == "OPERATOR":
             # Asks the user the type of operator he wants to inject.
             if operator_type is None:
@@ -363,7 +418,8 @@ class FaultInjector(object):
             except AssertionError:
                 return False
             self.__injection_sites = InjectionSitesGenerator(
-                to_injectable_site(injectable_sites_copy)).generate_random_injection_sites(size)
+                to_injectable_site(injectable_sites_copy)
+            ).generate_random_injection_sites(size)
 
             if len(self.__injection_sites) == 0:
                 return False
@@ -388,7 +444,10 @@ class FaultInjector(object):
             else:
                 operator_type = get_user_choice(self.__injectable_sites.keys())
                 # Prepares the instances to be presented as operator name and output size.
-                instances = [(i["name"], i["size"]) for i in self.__injectable_sites[operator_type]]
+                instances = [
+                    (i["name"], i["size"])
+                    for i in self.__injectable_sites[operator_type]
+                ]
                 # Gets the operator name, the user wants to inject.
                 instance = get_user_choice(instances)
             injectable_sites_copy = self.__injectable_sites.copy()
@@ -400,12 +459,15 @@ class FaultInjector(object):
                 else:
                     for elem in injectable_sites_copy[key]:
                         if elem["name"] == instance[0]:
-                            injection_site = InjectableSite(OperatorType[key], elem["name"], elem["size"])
+                            injection_site = InjectableSite(
+                                OperatorType[key], elem["name"], elem["size"]
+                            )
             # Instanties the InjectionSitesGenerator and generates a random injection with the injectable sites and
             # the campaign size.
             try:
-                self.__injection_sites = InjectionSitesGenerator([injection_site],
-                                                                 models_mode).generate_random_injection_sites(size)
+                self.__injection_sites = InjectionSitesGenerator(
+                    [injection_site], models_mode
+                ).generate_random_injection_sites(size)
             except:
                 return False
             return True
@@ -508,7 +570,7 @@ class FaultInjector(object):
             input_types=[t.dtype for t in inputs],
             op_def=operator.op_def,
             attrs=operator.node_def.attr,
-            name=operator.name
+            name=operator.name,
         )
 
     def __run(self, fetches, feed_dict={}, session=None, fault_map=None, as_is=False):
@@ -543,11 +605,15 @@ class FaultInjector(object):
             fault_map = self.__fault_map
         # Replicates the fetches if not "as is", otherwise uses the originals.
         if not as_is:
-            replicated_fetches = self.__get_replicated_fetches(fetches, fault_map=fault_map)
+            replicated_fetches = self.__get_replicated_fetches(
+                fetches, fault_map=fault_map
+            )
         else:
             replicated_fetches = fetches
         # Replicates the feeds.
-        replicated_feed_dict = self.__get_replicated_feed_dict(feed_dict, fault_map=fault_map)
+        replicated_feed_dict = self.__get_replicated_feed_dict(
+            feed_dict, fault_map=fault_map
+        )
         # Executes the run and returns the output.
         return session.run(replicated_fetches, feed_dict=replicated_feed_dict)  # [0]
 
@@ -632,7 +698,9 @@ class FaultInjector(object):
 
             operations_histogram {dict(str,str)} -- Operators histogram.
         """
-        injectable_sites = {}  # Map of injectables sites. The keys are the operator types,
+        injectable_sites = (
+            {}
+        )  # Map of injectables sites. The keys are the operator types,
         # The values are the operator names and sizes.
         # Slides over operator types.
         for operator_type in operations_histogram.keys():
@@ -644,7 +712,9 @@ class FaultInjector(object):
                 # Gets the operator from the graph.
                 operator = graph.get_operation_by_name(operator_name)
                 # assert operator.outputs[0].shape.is_fully_defined(), (operator_name, operator.outputs[0].shape)
-                operator_signature = OrderedDict()  # The signature of the operator (name and size) is a dictionary.
+                operator_signature = (
+                    OrderedDict()
+                )  # The signature of the operator (name and size) is a dictionary.
                 if operator_type == "FusedBatchNorm":
                     # injectable_site_type = "FusedBatchNorm_test"
                     injectable_site_type = "FusedBatchNorm"
@@ -713,8 +783,9 @@ class FaultInjector(object):
             # output_dimensions = len(partial_output.shape)
             if injection_site.operator_name not in cache:
                 # fault_fetches = self.__fault_fetches[injection_site.operator_name]
-                cache[injection_site.operator_name] = \
-                    self.__fault_session.run(fault_fetches, feed_dict=replicated_feeds)[0]
+                cache[injection_site.operator_name] = self.__fault_session.run(
+                    fault_fetches, feed_dict=replicated_feeds
+                )[0]
             partial_output = np.copy(cache[injection_site.operator_name])
             for index, value in injection_site:
                 # If the value type is [-1, 1] then the raw value has to be added at the current value.
@@ -727,11 +798,16 @@ class FaultInjector(object):
                     # Otherwise, set the value itself.
                     partial_output[index] = value.raw_value
             # Creates a dirty feed with the partial output.
-            dirty_feeds = {tensor: value for (tensor, value) in zip(fault_fetches, [partial_output])}
+            dirty_feeds = {
+                tensor: value
+                for (tensor, value) in zip(fault_fetches, [partial_output])
+            }
             dirty_feeds.update(replicated_feeds)
             # Gets the output with the fault tensor.
             t3 = time.time()
-            outputs = self.__fault_session.run(replicated_fetches, feed_dict=dirty_feeds)
+            outputs = self.__fault_session.run(
+                replicated_fetches, feed_dict=dirty_feeds
+            )
             for i in range(len(fetches)):
                 results[i].append(outputs[i])
             if callback is not None:
@@ -741,7 +817,11 @@ class FaultInjector(object):
         end_time = time.time()
         elapsed_time = end_time - start_time
         average_injection_time = elapsed_time / float(len(self.__injection_sites))
-        print("Total elapsed time: {:.5f} s for {} injections.".format(elapsed_time, len(self.__injection_sites)))
+        print(
+            "Total elapsed time: {:.5f} s for {} injections.".format(
+                elapsed_time, len(self.__injection_sites)
+            )
+        )
         print("Average injection time: {:.5f} s.".format(average_injection_time))
 
         return results, average_injection_time, self.__injection_sites
@@ -761,14 +841,25 @@ class FaultInjector(object):
         for _ in xrange(size):
             random_operator_index = np.random.randint(len(operator_names))
             fault_fetches = self.__fault_fetches[operator_names[random_operator_index]]
-            partial_output = self.__fault_session.run(fault_fetches, feed_dict=replicated_feeds)[0]
+            partial_output = self.__fault_session.run(
+                fault_fetches, feed_dict=replicated_feeds
+            )[0]
             modified_output = np.copy(partial_output)
-            dirty_feeds = {tensor: value for (tensor, value) in zip(fault_fetches, [modified_output])}
+            dirty_feeds = {
+                tensor: value
+                for (tensor, value) in zip(fault_fetches, [modified_output])
+            }
             dirty_feeds.update(replicated_feeds)
-            outputs = self.__fault_session.run(replicated_fetches, feed_dict=dirty_feeds)
+            outputs = self.__fault_session.run(
+                replicated_fetches, feed_dict=dirty_feeds
+            )
             global_outputs.append(outputs)
         end_time = time.time()
-        print("Elapsed time for a campaign of size {}: {}".format(size, end_time - start_time))
+        print(
+            "Elapsed time for a campaign of size {}: {}".format(
+                size, end_time - start_time
+            )
+        )
         return global_outputs
 
     def __del__(self):
