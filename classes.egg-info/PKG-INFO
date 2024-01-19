@@ -1,13 +1,16 @@
 Metadata-Version: 2.1
 Name: classes
 Version: 2.0.3
-Summary: a fault error simulator to emulate GPU faults on CNN
-Home-page: 
+Summary: A Cross-Layer framework for evaluating reliability of Deep Neural Networks
+Home-page: UNKNOWN
 Author: D4D
 Author-email: 
+License: UNKNOWN
+Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
 Classifier: Operating System :: OS Independent
 Description-Content-Type: text/markdown
 License-File: LICENSE
 
-a fault error simulator to emulate GPU faults on CNN
+A Cross-Layer framework for evaluating reliability of Deep Neural Networks
+

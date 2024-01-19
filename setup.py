@@ -10,7 +10,7 @@ setup(
     include_package_data=True,
     name='classes',         #Non ho capito a cosa serve, perchè poi usa il nome della cartella come nome effettivo
     version='2.0.3',
-    description='a fault error simulator to emulate GPU faults on CNN',
+    description='A Cross-Layer framework for evaluating reliability of Deep Neural Networks',
     url='',                 #Da mettere il link della repo
     author='D4D',
     author_email='',
@@ -25,7 +25,7 @@ setup(
         
         },
     install_requires=[],    #Da provare su un CONDA vuoto quali sono i requirements da fissare qui
-    long_description='a fault error simulator to emulate GPU faults on CNN',
+    long_description='A fault error simulator to emulate GPU faults on CNN',
     long_description_content_type="text/markdown",
     classifiers=[
         "Programming Language :: Python :: 3",

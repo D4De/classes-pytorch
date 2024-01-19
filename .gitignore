@@ -8,4 +8,5 @@ load.py
 __pycache__
 .venv
 .venv_tf
-./build
+build
+classes.egg-info
