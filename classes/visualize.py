@@ -38,7 +38,7 @@ def is_square(apositiveint: int) -> bool:
 def visualize(
     tensor_diff: np.ndarray,
     faulty_channels: Iterable[int],
-    layout_type: Literal['NCHW', 'NHWC'],
+    layout_type: Literal["NCHW", "NHWC"],
     output_path: Union[str, None] = None,
     save: bool = False,
     show: bool = True,
@@ -55,7 +55,7 @@ def visualize(
         plt.suptitle(suptitile)
 
     for i, curr_C in enumerate(faulty_channels):
-        if layout_type == 'NCHW':
+        if layout_type == "NCHW":
             slice_diff = tensor_diff[0, curr_C, :, :]
         else:
             slice_diff = tensor_diff[0, :, :, curr_C]
