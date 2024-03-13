@@ -26,15 +26,15 @@ def unpack_table(table: Dict[K, V]) -> Tuple[List[K], List[V]]:
     return keys, values
 
 
-def random_choice(a, size=None, replace=None, p=None):
+def random_choice_safe(a, size=None, replace=True, p=None):
     """
-    Wrapper for numpy choice function that accepts probabilities that do not sum to
+    Wrapper for ``np.random.choice`` function that accepts probabilities that do not sum to
     one. p will be normalized.
-    This function will also mitigate the risk of raising ValueError numerical errors.
-    See np.random.choice for better explanation of the parameters
+    This function will also mitigate the risk of raising ``ValueError`` caused by numerical imprecisions.
+    See ``np.random.choice`` for better explanation of the parameters
     """
     if p is not None:
         p1 = np.asarray(p).astype("float64")
-        p1 = p1 / np.sum(p1)
+        p1 = p1 / np.sum(p1) # Rescale vector to make it a probability vector (sum to 1)
         p = p1
     return np.random.choice(a, size=size, replace=replace, p=p)

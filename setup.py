@@ -12,8 +12,8 @@ setup(
     version="2.0.3",
     description="A Cross-Layer framework for evaluating reliability of Deep Neural Networks",
     url="",  # Da mettere il link della repo
-    author="D4D",
-    author_email="",
+    author="Design 4 Dependability Group (Polimi)",
+    author_email="dario.passarello@polimi.it",
     packages=pack + ["classes_core/models"],
     package_data={  # Per includere altri file diversi da .py nel package
         "classes_core": ["logging.conf"],  # Per il logger

@@ -13,7 +13,7 @@ import numpy as np
 import struct
 from .pattern_generators import generator_functions
 
-from .utils import random_choice, unpack_table
+from .utils import random_choice_safe, unpack_table
 from .loggers import get_logger
 
 # from src.visualize import visualize
@@ -318,7 +318,7 @@ class InjectionSitesGenerator(object):
             )
         sp_classes, sp_class_description = unpack_table(self.__models[operator_name])
         sp_classes_freqs = [desc["frequency"] for desc in sp_class_description]
-        return random_choice(sp_classes, p=sp_classes_freqs)
+        return random_choice_safe(sp_classes, p=sp_classes_freqs)
 
     def __select_domain_class(
         self, operator_name: str, spatial_class: str
@@ -326,7 +326,7 @@ class InjectionSitesGenerator(object):
         dom_classes: List[Dict[str, Any]] = self.__models[operator_name][spatial_class][
             "domain_classes"
         ]
-        return random_choice(dom_classes, p=[dc["frequency"] for dc in dom_classes])
+        return random_choice_safe(dom_classes, p=[dc["frequency"] for dc in dom_classes])
 
     def __select_spatial_parameters(
         self, operator_name: str, spatial_class: str
@@ -334,7 +334,7 @@ class InjectionSitesGenerator(object):
         sp_parameters: List[Dict[str, Any]] = self.__models[operator_name][
             spatial_class
         ]["parameters"]
-        selected_params = random_choice(
+        selected_params = random_choice_safe(
             sp_parameters, p=[dc["conditional_frequency"] for dc in sp_parameters]
         )
         return {**selected_params["keys"], **selected_params["stats"]}
@@ -377,7 +377,7 @@ class InjectionSitesGenerator(object):
         if "random" in domain_class:
             val_class, freq = unpack_table(domain_class["values"])
 
-            random_val_classes = random_choice(
+            random_val_classes = random_choice_safe(
                 len(val_class), size=cardinality, replace=True, p=freq
             )
 
@@ -396,7 +396,7 @@ class InjectionSitesGenerator(object):
         elif len(value_classes) == 2:
             rand_freq_1 = np.random.uniform(*freq_ranges[0])
             rand_freq_2 = 100 - rand_freq_1
-            random_val_classes = random_choice(
+            random_val_classes = random_choice_safe(
                 2, size=cardinality, replace=True, p=[rand_freq_1, rand_freq_2]
             )
             return [
@@ -459,7 +459,7 @@ class InjectionSitesGenerator(object):
                 else:
                     eligible_values = random_values
                 # eligible_values contains the values that respect the constraints if any
-                chosen_index = random_choice(len(eligible_values))
+                chosen_index = random_choice_safe(len(eligible_values))
                 realized_params[param_name] = eligible_values[chosen_index]
 
         return realized_params

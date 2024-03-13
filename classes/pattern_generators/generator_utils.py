@@ -1,11 +1,27 @@
 import math
-from typing import Dict, List, Literal, Tuple
+from typing import List, Tuple
 import numpy as np
 
 
 def random_int_from_pct_range(
     number: int, range_min_pct: float, range_max_pct: float
 ) -> int:
+    """
+    Extracts a random integer between the ``range_min_pct``% and ``range_max_pct``% of
+    ``number``
+
+    Args
+    ---
+    * ``number``: The base value
+    * ``min_val``: The minimum percetange of ``number`` that can be extracted
+    * ``max_val``: The maximum percetange of ``number`` that can be extracted
+
+    Returns
+    ---
+    A random integer extracted uniformly between ``number * range_min_pct / 100.0``
+    and ``number * range_max_pct / 100.0``. If these two values are not integer
+    they are rounded to the nearest integer.
+    """
     min_number = int(round(number * range_min_pct / 100.0))
     max_number = int(round(number * range_max_pct / 100.0))
 
@@ -14,10 +30,17 @@ def random_int_from_pct_range(
 
 def clamp(val, min_val, max_val):
     """
-    Restricts a val between min_val and max_val
+    Restricts a number between ``min_val`` and ``max_val``
 
-    Params
+    Args
     ---
+    * ``val``: The number to be clamped
+    * ``min_val``: The minimum value that can be returned
+    * ``max_val``: The maximum value that can be returned
+
+    Returns
+    ---
+    ``max(min_val, min(val, max_val))``
     """
     return max(min_val, min(val, max_val))
 
@@ -25,6 +48,22 @@ def clamp(val, min_val, max_val):
 def random_list_with_gap_constraints(
     length: int, max_number: int, min_gap: int, max_gap: int
 ) -> List[int]:
+    """
+    Extracts uniformly random ordered a list of integers containg ``length`` numbers between ``0`` and ``max_number``.
+    Each number has a distance from the previous between ``min_gap`` and ``max_gap``.
+    The first number is of the list always ``0`` and the last number of the list ``max_number`` (if the args allow it)
+
+    Args
+    ---
+    * ``length``: The lenght of the output list
+    * ``max_number``: The last number at the end of the list
+    * ``min_gap``: Minimum distance between two consecutive number of the list
+    * ``max_gap``: Maximum distance between two consecutive number of the list
+
+    Returns
+    ---
+    A list of integer with length ``length``. Each couple of consecutive numbers has a distance between ``min_gap`` and ``max_gap``.
+    """
     gap_list = [min_gap] * (length - 1)
     head = 0
     tail = min_gap * (length - 1)
@@ -84,23 +123,27 @@ def random_channels(
     ]
 
 
-def convert_to_linearized_index(
-    pos_list: List[Tuple[int, int]], output_shape: List[int]
-) -> List[int]:
+def create_access_tuple(layout: str, **kwargs) -> Tuple[int]:
+    """
+    Returns a tuple that can be used to be accessed ``numpy`` arrays using the axis
+    order specified in ``layout``.
 
-    num_values_per_channel = output_shape[2] * output_shape[3]
-    num_values_per_tensor = output_shape[1] * num_values_per_channel
-    return [
-        chan * num_values_per_channel + position
-        for chan, position in pos_list
-        if position < num_values_per_channel
-        if chan * num_values_per_channel + position < num_values_per_tensor
-    ]
+    Args
+    ----
+    * ``layout : str``: A case insensitive string that describes the layout, specifiying the order of the numpy array axes.
+                        Each axis is labeled by a character of this string.
+    * ``**kwargs``: Each keyword argument contains an index, a slice or a sequence. There must be a 1:1 correspondence between
+                    the chars of ``layout`` and the keys of the remaining keyword arguments. The set of all ``kwargs`` must be a valid
+                    combination for accessing numpy arrays. For example if there are two or more array kwargs, they must be broadcastable
+                    otherwise numpy will throw an error.
 
-
-def create_access_tuple(layout: str, **kwargs):
+    Returns
+    ----
+    A tuple that can be used for indexing the numpy array. Each axis index is ordered according to the ``layout``, and each
+    index is the same as the one provided in the kwargs.
+    """
     access = [None] * len(layout)
     kwargs = {k.upper(): v for k, v in kwargs.items()}
     for i, dim in enumerate(layout):
         access[i] = kwargs[dim.upper()]
-    return access
+    return tuple(access)
