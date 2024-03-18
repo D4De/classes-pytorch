@@ -2,13 +2,18 @@ from enum import Enum
 from typing import Any, Callable, Iterable, Tuple
 import numpy as np
 
-from classes.value_generators.value_generators import create_fill_generator, in_range_value_generator, out_of_range_value_generator
+from classes.value_generators.value_generators import (
+    create_fill_generator,
+    in_range_value_generator,
+    out_of_range_value_generator,
+)
 
 
 class ValueClass(Enum):
     """
     ``Enum`` containing all the classes of faulty values.
     """
+
     ZERO = (1, "zero", create_fill_generator(0.0))
     """
     The golden values is replaced with a 0
@@ -33,10 +38,20 @@ class ValueClass(Enum):
     A bit of the golden values is flipped. (Mapped to out of range due to rarity)
     """
 
-    def __init__(self, type_id: int, display_name: str, generator_function : Callable[[np.ndarray, Iterable[int], Any], np.ndarray]):
+    def __init__(
+        self,
+        type_id: int,
+        display_name: str,
+        generator_function: Callable[[np.ndarray, Iterable[int], Any], np.ndarray],
+    ):
         self.type_id = type_id
         self.display_name = display_name
         self.generator_function = generator_function
 
-    def generate_values(self, output_shape : Iterable[int], value_range = np.array([-30.0,30.0], dtype=np.float32), dtype=None):
+    def generate_values(
+        self,
+        output_shape: Iterable[int],
+        value_range=np.array([-30.0, 30.0], dtype=np.float32),
+        dtype=None,
+    ):
         return self.generator_function(value_range, output_shape, dtype)

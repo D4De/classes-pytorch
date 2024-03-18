@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Dict, Any, Sequence, Tuple
 
 import numpy as np
 
@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 
 def single_block_generator(
-    output_shape: Tuple[int], params: Dict[str, Any], layout="CHW"
-) -> Optional[List[int]]:
+    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
+) -> np.ndarray:
     c_dim, h_dim, w_dim = layout.index("C"), layout.index("H"), layout.index("W")
     c, h, w = output_shape[c_dim], output_shape[h_dim], output_shape[w_dim]
     mask = np.zeros(output_shape, dtype=np.uint8)

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Sequence, Tuple
 
 import numpy as np
 
@@ -10,8 +10,8 @@ from .generator_utils import (
 
 
 def full_channels_generator(
-    output_shape: Tuple[int], params: Dict[str, Any], layout="CHW"
-):
+    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
+) -> np.ndarray:
     c_dim, h_dim, w_dim = layout.index("C"), layout.index("H"), layout.index("W")
     num_channels = output_shape[c_dim]
     num_values_per_channel = output_shape[h_dim] * output_shape[w_dim]

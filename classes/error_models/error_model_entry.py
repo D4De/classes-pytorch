@@ -9,24 +9,37 @@ from classes.value_generators.domain_class import DomainClass
 
 @dataclass
 class ErrorModelEntry:
-    domain_classes : Sequence[DomainClass]
-    domain_classes_counts : Sequence[int]
-    spatial_parameters : Sequence[Dict[str, Any]]
-    spatial_classes_counts : Sequence[int]
+    spatial_pattern_name: str
+    domain_classes: Sequence[DomainClass]
+    domain_classes_counts: Sequence[int]
+    spatial_parameters: Sequence[Dict[str, Any]]
+    spatial_classes_counts: Sequence[int]
 
     @staticmethod
-    def from_json_object(json_dict : Dict[str, Any]) -> ErrorModelEntry:
+    def from_json_object(name: str, json_dict: Dict[str, Any]) -> ErrorModelEntry:
         domain_classes_dict = json_dict["domain_classes"]
         sp_parameters_dict = json_dict["parameters"]
 
         domain_classes_counts = [dom_cl["count"] for dom_cl in domain_classes_dict]
-        domain_classes = [DomainClass.from_json_object(dom_cl) for dom_cl in domain_classes_dict]
-        spatial_parameters_counts = [sp_param["count"] for sp_param in sp_parameters_dict]
-        
-        return ErrorModelEntry(domain_classes, domain_classes_counts, sp_parameters_dict, spatial_parameters_counts)
+        domain_classes = [
+            DomainClass.from_json_object(dom_cl) for dom_cl in domain_classes_dict
+        ]
+        spatial_parameters_counts = [
+            sp_param["count"] for sp_param in sp_parameters_dict
+        ]
+
+        return ErrorModelEntry(
+            name,
+            domain_classes,
+            domain_classes_counts,
+            sp_parameters_dict,
+            spatial_parameters_counts,
+        )
 
     def realize_spatial_parameters(self) -> Dict[str, Any]:
-        idx_choice = random_choice_safe(len(self.spatial_parameters), p=self.spatial_parameters)
+        idx_choice = random_choice_safe(
+            len(self.spatial_parameters), p=self.spatial_parameters
+        )
 
         params = self.spatial_parameters[idx_choice]
         is_random = any(
@@ -36,9 +49,11 @@ class ErrorModelEntry:
             return self.realize_random_parameters(params)
         else:
             return params
-        
+
     def realize_domain_class(self) -> DomainClass:
-        idx_choice = random_choice_safe(len(self.domain_classes), p=self.domain_classes_counts)
+        idx_choice = random_choice_safe(
+            len(self.domain_classes), p=self.domain_classes_counts
+        )
         return self.domain_classes[idx_choice]
 
     def realize_random_parameters(self, parameters):

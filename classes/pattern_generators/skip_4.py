@@ -1,13 +1,13 @@
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Sequence
 import numpy as np
 
 from .generator_utils import create_access_tuple, random_channels
 
 
 def skip_4_generator(
-    output_shape: Tuple[int], params: Dict[str, Any], layout="CHW"
-) -> Optional[List[int]]:
+    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
+) -> np.ndarray:
     c_dim, h_dim, w_dim = layout.index("C"), layout.index("H"), layout.index("W")
     c, h, w = output_shape[c_dim], output_shape[h_dim], output_shape[w_dim]
     num_channels = c

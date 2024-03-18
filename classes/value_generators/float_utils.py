@@ -7,6 +7,7 @@ def uint_repr(x: np.floating) -> np.integer:
     uint_type = np.dtype(f"uint{n_bits}")
     return x.view(uint_type)
 
+
 def float_sign(x: np.floating) -> np.int8:
     assert isinstance(
         x, np.floating

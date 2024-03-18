@@ -1,7 +1,12 @@
 from typing import Tuple
 import numpy as np
 
-from classes.value_generators.float_utils import float_sign, get_float_count_from_number, uint_repr
+from classes.value_generators.float_utils import (
+    float_sign,
+    get_float_count_from_number,
+    uint_repr,
+)
+
 
 def create_fill_generator(fill_value) -> np.ndarray:
     def fill_generator(
@@ -14,8 +19,9 @@ def create_fill_generator(fill_value) -> np.ndarray:
         if fill_value == 0.0:
             return np.zeros(size, dtype=float_type)
         data = np.empty(size, dtype=float_type)
-        data.fill(fill_value) 
+        data.fill(fill_value)
         return data
+
     return fill_generator
 
 

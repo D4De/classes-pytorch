@@ -326,7 +326,9 @@ class InjectionSitesGenerator(object):
         dom_classes: List[Dict[str, Any]] = self.__models[operator_name][spatial_class][
             "domain_classes"
         ]
-        return random_choice_safe(dom_classes, p=[dc["frequency"] for dc in dom_classes])
+        return random_choice_safe(
+            dom_classes, p=[dc["frequency"] for dc in dom_classes]
+        )
 
     def __select_spatial_parameters(
         self, operator_name: str, spatial_class: str

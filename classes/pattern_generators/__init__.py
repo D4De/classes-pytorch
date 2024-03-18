@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 from .bullet_wake import bullet_wake_generator
 from .multiple_channels_multi_block import multiple_channels_multi_block_generator
 from .same_column import same_row_generator
@@ -13,10 +13,11 @@ from .single_channel_random import single_channel_random_generator
 from .skip_4 import skip_4_generator
 from .multiple_channels_uncategorized import multiple_channels_uncategorized_generator
 
+import numpy as np
 
-generator_functions: Dict[
-    str, Callable[[List[int], Dict[str, Any]], Optional[List[int]]]
-] = {
+PatternGenerator = Callable[[Sequence[int], Dict[str, Any], str], np.ndarray]
+
+DEFAULT_GENERATORS: Dict[str, PatternGenerator] = {
     "bullet_wake": bullet_wake_generator,
     "multi_channel_block": multiple_channels_multi_block_generator,
     "same_column": same_row_generator,
