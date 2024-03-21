@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Sequence
 
 from tqdm import tqdm
 from classes.error_models.error_model import ErrorModel
-from classes.value_generators.domain_class import DomainClass
+from classes.value_generators.value_class_distribution import ValueClassDistribution
 from classes.pattern_generators import DEFAULT_GENERATORS, PatternGenerator
 
 import numpy as np
@@ -12,21 +12,22 @@ from classes.value_generators.value_class import ValueClass
 
 
 @dataclass
-class InjectionMaskGenerator:
+class FaultGenerator:
     error_model: ErrorModel
     generator_mapping: Dict[str, PatternGenerator] = DEFAULT_GENERATORS
     layout: str = "CHW"
     fixed_spatial_class: Optional[str] = None
     fixed_spatial_parameters: Optional[Dict[str, Any]] = None
-    fixed_domain_class: Optional[DomainClass] = (None,)
+    fixed_domain_class: Optional[ValueClassDistribution] = (None,)
 
     def __post_init__(self):
         if (
             self.fixed_spatial_class
+            and not self.fixed_spatial_parameters
             and self.fixed_spatial_class not in self.error_model.entries_name
         ):
             raise ValueError(
-                f"Entry name {self.fixed_spatial_class} does not exist in error model"
+                f"Entry name {self.fixed_spatial_class} does not exist in error model, and no spatial parameters are specified"
             )
 
     def generate_mask(
@@ -35,13 +36,16 @@ class InjectionMaskGenerator:
         value_range=np.array([-30.0, 30.0], dtype=np.float32),
         dtype=None,
     ):
+        # Data Type is inferred from value range if not specified
         if dtype is None:
             dtype = value_range.dtype
 
         if self.fixed_spatial_class:
+            # Use spatial class fixed at the creation of the generator
             spatial_pattern_name = self.fixed_spatial_class
             random_entry = self.error_model.get_entry_by_name(spatial_pattern_name)
         else:
+            # Pick random entry (spatial pattern) using the frequency 
             random_entry = self.error_model.realize_entry()
             spatial_pattern_name = random_entry.spatial_pattern_name
 
@@ -55,13 +59,17 @@ class InjectionMaskGenerator:
         else:
             sp_parameters = random_entry.realize_spatial_parameters()
 
+        # Get the pattern generating function from the dictionary by name
         pattern_generator_f = self.generator_mapping[spatial_pattern_name]
+        # Generate the mask containing corrupted values with the same shape of the output
+        # The mask contains 1 when the values are corrupted
         corrupted_value_mask = pattern_generator_f(
             output_shape, sp_parameters, self.layout
         )
-
+        # Get the number of corrupted values
         corrupted_values_count = corrupted_value_mask.sum()
-        domain_class_mask = domain_class.generate_domain_classes(
+        # Generate an array of integers 
+        domain_class_mask = domain_class.generate_value_classes(
             (corrupted_values_count,)
         )
         corrupted_values = np.zeros_like(domain_class_mask, dtype=dtype)

@@ -4,13 +4,13 @@ from dataclasses import dataclass
 from typing import Any, Dict, Sequence
 from classes.utils import random_choice_safe
 
-from classes.value_generators.domain_class import DomainClass
+from classes.value_generators.value_class_distribution import ValueClassDistribution
 
 
 @dataclass
 class ErrorModelEntry:
     spatial_pattern_name: str
-    domain_classes: Sequence[DomainClass]
+    domain_classes: Sequence[ValueClassDistribution]
     domain_classes_counts: Sequence[int]
     spatial_parameters: Sequence[Dict[str, Any]]
     spatial_classes_counts: Sequence[int]
@@ -22,7 +22,7 @@ class ErrorModelEntry:
 
         domain_classes_counts = [dom_cl["count"] for dom_cl in domain_classes_dict]
         domain_classes = [
-            DomainClass.from_json_object(dom_cl) for dom_cl in domain_classes_dict
+            ValueClassDistribution.from_json_object(dom_cl) for dom_cl in domain_classes_dict
         ]
         spatial_parameters_counts = [
             sp_param["count"] for sp_param in sp_parameters_dict
@@ -50,7 +50,7 @@ class ErrorModelEntry:
         else:
             return params
 
-    def realize_domain_class(self) -> DomainClass:
+    def realize_domain_class(self) -> ValueClassDistribution:
         idx_choice = random_choice_safe(
             len(self.domain_classes), p=self.domain_classes_counts
         )
