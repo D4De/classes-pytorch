@@ -28,8 +28,8 @@ def rectangles_generator(
     if channel_height < rectangle_height or channel_width < rectangle_width:
         return None
 
-    random_top = np.random.randint(0, channel_height - rectangle_height)
-    random_left = np.random.randint(0, channel_width - rectangle_width)
+    random_top = np.random.randint(0, max(channel_height - rectangle_height, 1))
+    random_left = np.random.randint(0, max(channel_width - rectangle_width, 1))
 
     top_left_position = random_top * channel_width + random_left
 
@@ -40,7 +40,7 @@ def rectangles_generator(
             for w in range(rectangle_width)
         ]
 
-        h_idxs, w_idxs = np.ravel_multi_index(rectangle_positions, (h, w))
+        h_idxs, w_idxs = np.unravel_index(rectangle_positions, (h, w))
         access = create_access_tuple(layout, c=chan, h=h_idxs, w=w_idxs)
         mask[access] = 1
 

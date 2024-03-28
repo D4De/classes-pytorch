@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Any, Sequence, Tuple
 
 import numpy as np
+import math
 
 from .generator_utils import (
     create_access_tuple,
@@ -34,17 +35,11 @@ def multiple_channels_multi_block_generator(
 
     num_blocks_per_channel = num_values_per_channel // block_size
     # Consider the remainder block valid only if is at least half of the normal block length
-    if num_values_per_channel % block_size >= block_size // 2:
+    if num_values_per_channel % block_size >= block_size // 2 or num_blocks_per_channel == 0:
         num_blocks_per_channel += 1
         remainder_block_included = True
     else:
         remainder_block_included = False
-
-    if num_blocks_per_channel == 0:
-        logger.warn(
-            f"Failed to inject multi_channels_multi_block: Block of {block_size} too big for channel size ({output_shape[2]}x{output_shape[3]})"
-        )
-        return None
 
     random_block = np.random.randint(0, num_blocks_per_channel)
     # picked_block_suze contains the real block size of the selected block
@@ -60,7 +55,7 @@ def multiple_channels_multi_block_generator(
             random_int_from_pct_range(picked_block_size, *avg_block_corruption_pct),
         )
         positions = np.random.choice(picked_block_size, num_corr_positions)
-        chan_corr_pos = [(block_size * random_block + pos) for pos in positions]
+        chan_corr_pos = positions + random_block * block_size
         h_idxs, w_idxs = np.unravel_index(chan_corr_pos, (h, w))
         access = create_access_tuple(layout, c=chan, h=h_idxs, w=w_idxs)
         mask[access] = 1
