@@ -17,7 +17,8 @@ import numpy as np
 
 PatternGenerator = Callable[[Sequence[int], Dict[str, Any], str], np.ndarray]
 
-DEFAULT_GENERATORS: Dict[str, PatternGenerator] = {
+def get_default_generators():
+    return {
     "bullet_wake": bullet_wake_generator,
     "multi_channel_block": multiple_channels_multi_block_generator,
     "same_column": same_row_generator,

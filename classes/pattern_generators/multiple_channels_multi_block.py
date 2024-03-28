@@ -29,7 +29,6 @@ def multiple_channels_multi_block_generator(
         *params["affected_channels_pct"],
         min_channels=2,
     )
-    corrupted_positions = []
     avg_block_corruption_pct: Tuple[float, float] = params["avg_block_corruption_pct"]
     block_size: int = params["block_size"]
 

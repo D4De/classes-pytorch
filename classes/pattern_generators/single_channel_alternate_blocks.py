@@ -25,16 +25,25 @@ def single_channel_alternated_block_generator(
 
     random_channel = np.random.randint(0, num_channels)
 
-    num_blocks = int(math.ceil(num_values_per_channel / 2))
+    num_blocks = int(math.ceil(num_values_per_channel / block_size))
     curr_block = 0
 
-    corrupted_positions = []
+    corrupted_blocks = [] # Contains the id of the blocks that will be entirely corrupted
 
     while curr_block < num_blocks:
-        corrupted_positions += [i + curr_block * block_size for i in range(block_size)]
-        block_skip = np.random.randint(min_block_skip, max_block_skip + 1)
+        corrupted_blocks.append(curr_block)
+
+        block_skip = np.random.randint(min_block_skip, max_block_skip + 1) # Random skip depending on parameters
         curr_block += block_skip
-    h_idxs, w_idxs = np.unravel_index(layout, shape=(h, w))
+    
+    # Calculate where the blocks start (with flattened channel index)
+    corrupted_blocks_start = np.expand_dims(np.array(corrupted_blocks), axis=1) * block_size # shape (n_blocks, 1)
+    
+    positions = corrupted_blocks_start + np.arange(0, block_size) # shape (n_blocks, block_size)
+    corrupted_positions = positions.flatten() # shape (n_blocks * block_size)
+    corrupted_positions[corrupted_positions >=  num_values_per_channel] = corrupted_positions[0]
+
+    h_idxs, w_idxs = np.unravel_index(corrupted_positions, shape=(h, w))
     access = create_access_tuple(layout, c=random_channel, h=h_idxs, w=w_idxs)
     mask[access] = 1
     return mask

@@ -1,10 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Sequence
 
 from tqdm import tqdm
 from classes.error_models.error_model import ErrorModel
+from classes.error_models.error_model_entry import ErrorModelEntry
 from classes.value_generators.value_class_distribution import ValueClassDistribution
-from classes.pattern_generators import DEFAULT_GENERATORS, PatternGenerator
+from classes.pattern_generators import get_default_generators, PatternGenerator
 
 import numpy as np
 
@@ -14,7 +15,7 @@ from classes.value_generators.value_class import ValueClass
 @dataclass
 class FaultGenerator:
     error_model: ErrorModel
-    generator_mapping: Dict[str, PatternGenerator] = DEFAULT_GENERATORS
+    generator_mapping: Dict[str, PatternGenerator] = field(default_factory=get_default_generators) 
     layout: str = "CHW"
     fixed_spatial_class: Optional[str] = None
     fixed_spatial_parameters: Optional[Dict[str, Any]] = None
@@ -103,6 +104,14 @@ class FaultGenerator:
         masks = np.stack(masks, axis=0)
         values = np.concatenate(values, axis=0)
         return masks, values
+
+    def spatial_patterns_generator(self):
+        for entry in self.error_model.entries:
+            entry : ErrorModelEntry
+            for sp_parameter in entry.spatial_parameters:
+                yield (entry.spatial_pattern_name, self.generator_mapping[entry.spatial_pattern_name], sp_parameter)
+            
+
 
     def generate_fault_list(
         self,

@@ -47,8 +47,8 @@ def shattered_channel_generator(
             np.random.choice(span_width, channel_num_corr_pos, replace=False)
             + span_begin
         )
-        h_idxs, w_idxs = np.ravel_multi_index(channel_corr_pos, dims=(h, w))
-        h_comm, w_comm = np.ravel_multi_index(common_position, dims=(h, w))
+        h_idxs, w_idxs = np.unravel_index(channel_corr_pos, shape=(h, w))
+        h_comm, w_comm = np.unravel_index(common_position, shape=(h, w))
         access = create_access_tuple(layout, c=channel, h=h_idxs, w=w_idxs)
         comm_access = create_access_tuple(layout, c=channel, h=h_comm, w=w_comm)
         mask[access] = 1

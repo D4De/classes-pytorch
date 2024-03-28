@@ -33,13 +33,13 @@ def multiple_channels_uncategorized_generator(
         )
         num_channel_corrupted_values = clamp(
             num_channel_corrupted_values,
-            params["min_errors_per_channel"],
-            params["max_errors_per_channel"],
+            min(params["min_errors_per_channel"], num_values_per_channel),
+            min(params["max_errors_per_channel"], num_values_per_channel),
         )
         channel_corr_pos = np.random.choice(
             num_values_per_channel, num_channel_corrupted_values, replace=False
         )
-        h_idxs, w_idxs = np.ravel_multi_index(channel_corr_pos, (h, w))
+        h_idxs, w_idxs = np.unravel_index(channel_corr_pos, shape=(h, w))
         access = create_access_tuple(layout, c=channel, h=h_idxs, w=w_idxs)
         mask[access] = 1
     return mask

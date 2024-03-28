@@ -35,13 +35,17 @@ class ErrorModelEntry:
             sp_parameters_dict,
             spatial_parameters_counts,
         )
+    
 
     def realize_spatial_parameters(self) -> Dict[str, Any]:
+        print(self.spatial_parameters)
         idx_choice = random_choice_safe(
-            len(self.spatial_parameters), p=self.spatial_parameters
+            len(self.spatial_parameters), p=self.spatial_classes_counts
         )
 
         params = self.spatial_parameters[idx_choice]
+        # Condense keys and stats subdivisions in asingle dict
+        params = {**params['keys'], **params['stats']}
         is_random = any(
             isinstance(val, dict) and "RANDOM" in val for val in params.values()
         )
@@ -49,6 +53,7 @@ class ErrorModelEntry:
             return self.realize_random_parameters(params)
         else:
             return params
+    
 
     def realize_domain_class(self) -> ValueClassDistribution:
         idx_choice = random_choice_safe(
@@ -56,7 +61,8 @@ class ErrorModelEntry:
         )
         return self.domain_classes[idx_choice]
 
-    def realize_random_parameters(self, parameters):
+    @staticmethod
+    def realize_random_parameters(parameters):
         realized_params: Dict[str, Any] = {}
         # There could be some keys that specify a minumum and a maximum constraint for a parameters (example min_span_width, max_span_width)
         # In this case the values that we randomly extract from a minium or a maximum value must be coherent (the max should be >= than the min)

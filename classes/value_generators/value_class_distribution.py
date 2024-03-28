@@ -78,7 +78,7 @@ class ValueClassDistribution(ABC):
             ```
             {
                 "<type_1>": [75.0,87.5],
-                "<type_2>": [0.0,12.5],
+                "<type_2>": [12.5,25.0],
                 "count": 68,
                 "frequency": 0.022696929238985315
             }
@@ -155,6 +155,9 @@ class SingleTypeDistribution(ValueClassDistribution):
         arr = np.empty(output_shape, dtype=np.uint8)
         arr.fill(self.value_class.type_id)
         return arr
+    
+    def __repr__(self):
+        return f'SingleTypeDistribution({self.value_class!s}=[100%,100%])'
 
 
 class DoubleTypeDistribution(ValueClassDistribution):
@@ -185,6 +188,10 @@ class DoubleTypeDistribution(ValueClassDistribution):
             p=np.array(pct_class_1, pct_class_2) / 100.0,
         )
 
+    def __repr__(self):
+        vc0, vc1 = self.value_classes
+        (r0a, r0b), (r1a, r1b) = self.pct_ranges
+        return f'DoubleTypeDistribution({vc0!s}=[{r0a}%,{r0b}%],{vc1!s}=[{r1a}%,{r1b}%])'
 
 class RandomDistribution(ValueClassDistribution):
     """
@@ -205,3 +212,9 @@ class RandomDistribution(ValueClassDistribution):
         return random_choice_safe(
             self.get_value_classes_ids(), output_shape, p=self.freq
         )
+    def __repr__(self) -> str:
+        random_values = []
+        for vc, fr in zip(self.value_classes, self.freq):
+            random_values.append(f'{vc!s}={fr:.3f}')
+        ','.join(random_values)
+        return f'RandomDistribution({random_values})' 

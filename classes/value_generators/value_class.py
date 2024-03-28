@@ -55,3 +55,6 @@ class ValueClass(Enum):
         dtype=None,
     ):
         return self.generator_function(value_range, output_shape, dtype)
+    
+    def __str__(self) -> str:
+        return f'value_class_{self.display_name}'

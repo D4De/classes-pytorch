@@ -32,7 +32,7 @@ def same_row_generator(
     random_row = np.random.randint(0, num_rows)
 
     corrupted_positions = [random_row * num_cols + idx for idx in rows_indexes]
-    h_idxs, w_idxs = np.ravel_multi_index(corrupted_positions, (h, w))
+    h_idxs, w_idxs = np.unravel_index(corrupted_positions, shape=(h, w))
     access = create_access_tuple(layout, c=random_channel, h=h_idxs, w=w_idxs)
     mask[access] = 1
 

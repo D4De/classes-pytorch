@@ -27,9 +27,9 @@ def full_channels_generator(
     avg_chan_corruption_pct: Tuple[float, float] = params["avg_channel_corruption_pct"]
 
     for chan in channels:
-        num_corr_positions = random_int_from_pct_range(
+        num_corr_positions = max(random_int_from_pct_range(
             num_values_per_channel, *avg_chan_corruption_pct
-        )
+        ), 1)
         positions = np.random.choice(num_corr_positions, num_values_per_channel)
         h_idxs, w_idxs = np.unravel_index(
             positions, (output_shape[h_dim], output_shape[w_dim])
