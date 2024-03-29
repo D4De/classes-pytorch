@@ -46,7 +46,7 @@ def clamp(val, min_val, max_val):
 
 
 def random_list_with_gap_constraints(
-    length: int, max_number: int, min_gap: int, max_gap: int, strict : bool = False
+    length: int, max_number: int, min_gap: int, max_gap: int, strict: bool = False
 ) -> List[int]:
     """
     Extracts uniformly random ordered a list of integers containg ``length`` numbers between ``0`` and ``max_number``.
@@ -65,31 +65,35 @@ def random_list_with_gap_constraints(
     ---
     A list of integer with length ``length``. Each couple of consecutive numbers has a distance between ``min_gap`` and ``max_gap``.
     """
-    #print(f'{length=} {max_number=} {min_gap=} {max_gap=}')
+    # print(f'{length=} {max_number=} {min_gap=} {max_gap=}')
     if length == 0:
         return np.array([], dtype=np.int64)
     if length == 1:
         return np.array([0], dtype=np.int64)
-    if min_gap == max_gap :
+    if min_gap == max_gap:
         return np.int64(np.arange(0, max_number, min_gap)[:length])
 
-    gap_list = np.full((length - 1,),min_gap, dtype=np.int64)
+    gap_list = np.full((length - 1,), min_gap, dtype=np.int64)
 
     tail = min_gap * (length - 1)
     distance_to_max_number = max_number - tail
     if distance_to_max_number <= 0:
         if strict:
-            raise ValueError(f'List is impossible to costruct with parameters {length=} {max_number=} {min_gap=} {max_gap=}')
+            raise ValueError(
+                f"List is impossible to costruct with parameters {length=} {max_number=} {min_gap=} {max_gap=}"
+            )
         increment = False
         distance_to_max_number = tail - max_number
-        possible_incremenents_per_gap = (min_gap - 1)
+        possible_incremenents_per_gap = min_gap - 1
         possible_incremenents = possible_incremenents_per_gap * (length - 1)
     else:
         increment = True
-        possible_incremenents_per_gap =  (max_gap - min_gap)
+        possible_incremenents_per_gap = max_gap - min_gap
         possible_incremenents = possible_incremenents_per_gap * (length - 1)
-    
-    increments_ids = np.random.choice(possible_incremenents, size=distance_to_max_number, replace=False)
+
+    increments_ids = np.random.choice(
+        possible_incremenents, size=distance_to_max_number, replace=False
+    )
     gap_ids = np.intp(np.floor(increments_ids / possible_incremenents_per_gap))
     gap_ids, gap_counts = np.unique(gap_ids, return_counts=True)
     if increment:
@@ -100,7 +104,7 @@ def random_list_with_gap_constraints(
     result = np.zeros((length,), dtype=np.intp)
     np.cumsum(gap_list, out=result[1:])
 
-    #print(result)
+    # print(result)
     return result
 
 

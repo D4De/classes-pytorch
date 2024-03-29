@@ -17,20 +17,21 @@ import numpy as np
 
 PatternGenerator = Callable[[Sequence[int], Dict[str, Any], str], np.ndarray]
 
-def get_default_generators():
+
+def get_default_generators() -> Dict[str, PatternGenerator]:
     return {
-    "bullet_wake": bullet_wake_generator,
-    "multi_channel_block": multiple_channels_multi_block_generator,
-    "same_column": same_row_generator,
-    "shattered_channel": shattered_channel_generator,
-    "quasi_shattered_channel": shattered_channel_generator,
-    "single_channel_alternated_blocks": single_channel_alternated_block_generator,
-    "multiple_channels_uncategorized": multiple_channels_uncategorized_generator,
-    "single": single_generator,
-    "full_channels": full_channels_generator,
-    "rectangles": rectangles_generator,
-    "same_row": same_row_generator,
-    "single_block": single_block_generator,
-    "single_channel_random": single_channel_random_generator,
-    "skip_4": skip_4_generator,
-}
+        "bullet_wake": bullet_wake_generator,
+        "multi_channel_block": multiple_channels_multi_block_generator,
+        "same_column": same_row_generator,
+        "shattered_channel": shattered_channel_generator,
+        "quasi_shattered_channel": shattered_channel_generator,
+        "single_channel_alternated_blocks": single_channel_alternated_block_generator,
+        "multiple_channels_uncategorized": multiple_channels_uncategorized_generator,
+        "single": single_generator,
+        "full_channels": full_channels_generator,
+        "rectangles": rectangles_generator,
+        "same_row": same_row_generator,
+        "single_block": single_block_generator,
+        "single_channel_random": single_channel_random_generator,
+        "skip_4": skip_4_generator,
+    }

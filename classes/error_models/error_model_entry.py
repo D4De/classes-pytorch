@@ -22,7 +22,8 @@ class ErrorModelEntry:
 
         domain_classes_counts = [dom_cl["count"] for dom_cl in domain_classes_dict]
         domain_classes = [
-            ValueClassDistribution.from_json_object(dom_cl) for dom_cl in domain_classes_dict
+            ValueClassDistribution.from_json_object(dom_cl)
+            for dom_cl in domain_classes_dict
         ]
         spatial_parameters_counts = [
             sp_param["count"] for sp_param in sp_parameters_dict
@@ -35,7 +36,6 @@ class ErrorModelEntry:
             sp_parameters_dict,
             spatial_parameters_counts,
         )
-    
 
     def realize_spatial_parameters(self) -> Dict[str, Any]:
         print(self.spatial_parameters)
@@ -45,7 +45,7 @@ class ErrorModelEntry:
 
         params = self.spatial_parameters[idx_choice]
         # Condense keys and stats subdivisions in asingle dict
-        params = {**params['keys'], **params['stats']}
+        params = {**params["keys"], **params["stats"]}
         is_random = any(
             isinstance(val, dict) and "RANDOM" in val for val in params.values()
         )
@@ -53,7 +53,6 @@ class ErrorModelEntry:
             return self.realize_random_parameters(params)
         else:
             return params
-    
 
     def realize_domain_class(self) -> ValueClassDistribution:
         idx_choice = random_choice_safe(
