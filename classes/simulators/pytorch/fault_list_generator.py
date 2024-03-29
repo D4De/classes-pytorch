@@ -11,9 +11,9 @@ from typing import Any, Callable, Generator, Optional, Sequence, Tuple
 
 from tqdm import tqdm
 
-from classes.error_models.error_model import ErrorModel
 from classes.fault_generator.fault_generator import FaultGenerator
 from classes.simulators.pytorch.error_model_mapper import (
+    ModuleToFaultGeneratorMapper,
     create_module_to_generator_mapper,
 )
 from classes.simulators.pytorch.network_profiler import network_shape_profiler
@@ -21,7 +21,6 @@ from classes.simulators.pytorch.network_profiler import network_shape_profiler
 
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-ModuleToFaultGeneratorMapper = Callable[[str, nn.Module], Optional[FaultGenerator]]
 
 
 class FaultListGenerator:
@@ -83,12 +82,15 @@ class FaultListGenerator:
     ):
         os.makedirs(dir_path, exist_ok=True)
         count = 0
-        iterator = self.network_fault_list_generator(n_faults, fault_batch_size)
         n_iters = int(math.ceil(n_faults / fault_batch_size)) * self.injectable_layers
 
+        pbar = None
         if show_progress:
             pbar = tqdm(total=n_iters)
-        for module_name, (masks, values, values_index) in iterator:
+        
+        for module_name, (masks, values, values_index) in self.network_fault_list_generator(n_faults, fault_batch_size):
+            if pbar:
+                pbar.set_description(module_name)
             file_name = os.path.join(dir_path, "faults_{module_name}_seq_{count}.npz")
             npz_dict = {
                 "masks": masks,
@@ -99,6 +101,5 @@ class FaultListGenerator:
             }
             np.savez_compressed(file_name, **npz_dict)
             count += 1
-            if show_progress:
+            if pbar:
                 pbar.update(1)
-                pbar.set_description(module_name)

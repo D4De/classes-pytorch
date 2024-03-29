@@ -120,22 +120,24 @@ class ValueClassDistribution(ABC):
         """
         all_keys = set(v.display_name for v in ValueClass)
         if "random" in json_dict:
-            value_classes = list(json_dict["values"].keys())
+            value_classes = list(map(ValueClass.from_display_name, json_dict["values"].keys()))
             freqs = list(json_dict["values"].values())
             return RandomDistribution(value_classes, freqs)
-        value_classes = all_keys & set(json_dict.keys())
+        # Filters out the non value_classes keys in the json, such as "count" and "frequency"
+        value_classes_names = all_keys & set(json_dict.keys())
+        value_classes = list(map(ValueClass.from_display_name, value_classes_names))
         if len(value_classes) == 1:
             value_class = list(value_classes)[0]
             return SingleTypeDistribution(value_class)
         elif len(value_classes) == 2:
             value_classes = list(value_classes)
-            ranges = [json_dict[val_class] for val_class in value_classes]
+            ranges = [json_dict[val_class] for val_class in value_classes_names]
             return DoubleTypeDistribution(value_classes, ranges)
         elif len(value_classes) > 2:
             raise ValueError(
                 "Non-Random Domain Classes with more than two maule classes are not supported"
             )
-        elif len(value_classes) == 0:
+        else:
             raise ValueError("No Value Classes specified in Domain Class definition")
 
 
@@ -153,8 +155,8 @@ class SingleTypeDistribution(ValueClassDistribution):
         return self.value_class
 
     def generate_value_classes(self, output_shape: Sequence[int]) -> np.ndarray:
-        arr = np.empty(output_shape, dtype=np.uint8)
-        arr.fill(self.value_class.type_id)
+        print(self.value_class.type_id)
+        arr = np.full(output_shape, fill_value=self.value_class.type_id, dtype=np.uint8)
         return arr
 
     def __repr__(self):
@@ -186,7 +188,7 @@ class DoubleTypeDistribution(ValueClassDistribution):
         return np.random.choice(
             self.get_value_classes_ids(),
             size=output_shape,
-            p=np.array(pct_class_1, pct_class_2) / 100.0,
+            p=np.array([pct_class_1, pct_class_2]) / 100.0,
         )
 
     def __repr__(self):
@@ -209,7 +211,7 @@ class RandomDistribution(ValueClassDistribution):
         super().__init__(value_classes)
         if len(value_classes) != len(freq):
             raise ValueError(
-                f"value_classes and pct_ranges must be sequences of the same length. Instead found value_classes of len {len(value_classes)} and pct_ranges of len {len(pct_ranges)}"
+                f"value_classes and freq must be sequences of the same length. Instead found value_classes of len {len(value_classes)} and pct_ranges of len {len(freq)}"
             )
         self.freq = freq
 

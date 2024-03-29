@@ -31,16 +31,15 @@ def network_shape_profiler(
 
         return _shape_profile_hook
 
-    assert (input_data and not input_shape) or (
-        not input_data and input_shape
-    ), "One and only one of input_data and input_shape must be specified."
 
-    if input_data:
+    if input_data and not input_shape:
         input_shape = input_data.shape
         input_data = input_data.to(device)
-    else:
+    elif not input_data and input_shape:
         input_data = torch.normal(0.0, 1.0, input_shape).to(device)
-
+    else:
+        raise ValueError("One and only one between input_data and input_shape must be specified.")
+    
     network.to(device)
 
     hook_handles: List[RemovableHandle] = []

@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, TypeVar
+from typing import Any, Dict, List, Tuple, TypeVar, Union
 import numpy as np
 
 K = TypeVar("K")
@@ -26,7 +26,7 @@ def unpack_table(table: Dict[K, V]) -> Tuple[List[K], List[V]]:
     return keys, values
 
 
-def random_choice_safe(a, size=None, replace=True, p=None):
+def random_choice_safe(a, size=None, replace=True, p=None) -> Any:
     """
     Wrapper for ``np.random.choice`` function that accepts probabilities that do not sum to
     one. p will be normalized.

@@ -2,6 +2,7 @@ import os
 import traceback as tb
 
 import argparse
+from typing import Optional
 
 from tqdm import tqdm
 
@@ -65,7 +66,7 @@ def test_fault_generator(
     output_shape,
     layout="CHW",
     n_attempts=100,
-    pbar: tqdm = None,
+    pbar: Optional[tqdm] = None,
 ):
     for sp_name, gen_f, sp_params in fault_gen.spatial_patterns_generator():
         if pbar is not None:

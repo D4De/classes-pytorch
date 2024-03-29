@@ -21,7 +21,7 @@ class FaultGenerator:
     layout: str = "CHW"
     fixed_spatial_class: Optional[str] = None
     fixed_spatial_parameters: Optional[Dict[str, Any]] = None
-    fixed_domain_class: Optional[ValueClassDistribution] = (None,)
+    fixed_domain_class: Optional[ValueClassDistribution] = None
 
     def __post_init__(self):
         if (
@@ -63,15 +63,16 @@ class FaultGenerator:
             sp_parameters = random_entry.realize_spatial_parameters()
 
         # Get the pattern generating function from the dictionary by name
-        pattern_generator_f = self.generator_mapping[spatial_pattern_name]
+        pattern_generator_fn = self.generator_mapping[spatial_pattern_name]
         # Generate the mask containing corrupted values with the same shape of the output
         # The mask contains 1 when the values are corrupted
-        corrupted_value_mask = pattern_generator_f(
+        corrupted_value_mask = pattern_generator_fn(
             output_shape, sp_parameters, self.layout
         )
         # Get the number of corrupted values
         corrupted_values_count = corrupted_value_mask.sum()
         # Generate an array of integers
+        print(domain_class)
         domain_class_mask = domain_class.generate_value_classes(
             (corrupted_values_count,)
         )
@@ -97,6 +98,9 @@ class FaultGenerator:
     ):
         masks = []
         values = []
+
+        assert batch_size > 0, "batch_size must be a positive int"
+
         for i in range(batch_size):
             mask, corr_value = self.generate_mask(
                 output_shape, value_range, dtype=dtype
@@ -120,27 +124,3 @@ class FaultGenerator:
                     sp_parameter,
                 )
 
-    def generate_fault_list(
-        self,
-        n_faults: int,
-        output_shape: Sequence[int],
-        batch_size: Optional[int] = None,
-        value_range=np.array([-30.0, 30.0], dtype=np.float32),
-        dtype=None,
-        show_progress=True,
-    ):
-        masks = []
-        values = []
-        iterations = range(n_faults)
-        if show_progress:
-            iterations = tqdm(iterations)
-        for i in iterations:
-            if batch_size:
-                masks, values = self.generate_batched_mask(
-                    output_shape, batch_size, value_range, dtype=dtype
-                )
-            else:
-                masks, values = self.generate_mask(
-                    output_shape, value_range, dtype=dtype
-                )
-        return masks, values

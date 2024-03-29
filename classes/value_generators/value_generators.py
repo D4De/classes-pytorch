@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Callable
 import numpy as np
 
 from classes.value_generators.float_utils import (
@@ -8,7 +8,7 @@ from classes.value_generators.float_utils import (
 )
 
 
-def create_fill_generator(fill_value) -> np.ndarray:
+def create_fill_generator(fill_value) -> Callable:
     def fill_generator(
         val_range: np.ndarray, size: Tuple[int], dtype=None
     ) -> np.ndarray:
@@ -50,7 +50,7 @@ def in_range_value_generator(
         float_type = val_range.dtype
     else:
         float_type = dtype
-    return np.random.uniform(a, b, size=size, dtype=float_type)
+    return np.random.uniform(a, b, size=size).astype(dtype=float_type)
 
 
 def out_of_range_value_generator(
@@ -111,7 +111,7 @@ def out_of_range_value_generator(
         smaller_than_a = floats_less_than_a
         bigger_than_b = floats_more_than_b
         range_sides_probs = np.array(
-            [smaller_than_a, bigger_than_b], type=uint_type
+            [smaller_than_a, bigger_than_b], dtype=uint_type
         ) / (smaller_than_a + bigger_than_b)
         small_big_choices = np.random.choice(
             [False, True], size, replace=True, p=range_sides_probs
@@ -143,14 +143,14 @@ def out_of_range_value_generator(
         bigger_than_b = floats_b_to_zero + floats_with_opposite_sign
         # First choose if each value stands in (-inf,a) or (b,+inf)
         range_sides_probs = np.array(
-            [smaller_than_a, bigger_than_b], type=uint_type
+            [smaller_than_a, bigger_than_b], dtype=uint_type
         ) / (smaller_than_a + bigger_than_b)
         range_sides_choices = np.random.choice(
             [False, True], size, replace=True, p=range_sides_probs
         )
         # Then choose, for the values between
         sign_probs = (
-            np.array([floats_b_to_zero, floats_with_opposite_sign], type=uint_type)
+            np.array([floats_b_to_zero, floats_with_opposite_sign], dtype=uint_type)
             / bigger_than_b
         )
         sign_choices = np.random.choice([False, True], size, replace=True, p=sign_probs)
@@ -189,14 +189,14 @@ def out_of_range_value_generator(
         bigger_than_b = floats_more_than_b
         # First choose if each value stands in (-inf,a) or (b,+inf)
         range_sides_probs = np.array(
-            [smaller_than_a, bigger_than_b], type=uint_type
+            [smaller_than_a, bigger_than_b], dtype=uint_type
         ) / (smaller_than_a + bigger_than_b)
         range_sides_choices = np.random.choice(
             [False, True], size, replace=True, p=range_sides_probs
         )
         # Then choose, for the values between
         sign_probs = (
-            np.array([floats_with_opposite_sign, floats_a_to_zero], type=uint_type)
+            np.array([floats_with_opposite_sign, floats_a_to_zero], dtype=uint_type)
             / smaller_than_a
         )
         sign_choices = np.random.choice([False, True], size, replace=True, p=sign_probs)

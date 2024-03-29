@@ -42,7 +42,7 @@ class ValueClass(Enum):
         self,
         type_id: int,
         display_name: str,
-        generator_function: Callable[[np.ndarray, Iterable[int], Any], np.ndarray],
+        generator_function: Callable,
     ):
         self.type_id = type_id
         self.display_name = display_name
@@ -55,6 +55,25 @@ class ValueClass(Enum):
         dtype=None,
     ):
         return self.generator_function(value_range, output_shape, dtype)
+    
+    @staticmethod
+    def from_display_name(display_name : str):
+        """
+        Get the ``ValueClass`` corresponding to a display name
+
+        Args
+        ----
+        * ``display_name : str``. The display name of the class to be generated (Case insensitive)
+
+        Returns
+        ----
+        The ``ValueClass`` object that has a display name equal to ``display_name`` (ignoring case), if it exists
+
+        Raises
+        ----
+        ``KeyError`` if there is no ``ValueClass`` with that display name
+        """
+        return ValueClass[display_name.upper()]
 
     def __str__(self) -> str:
         return f"value_class_{self.display_name}"
