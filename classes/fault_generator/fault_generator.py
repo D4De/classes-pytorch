@@ -102,8 +102,11 @@ class FaultGenerator:
             masks.append(mask)
             values.append(corr_value)
         masks = np.stack(masks, axis=0)
+        values_lengths = np.array(map(np.size, corr_value), dtype=np.intp)
+        values_index = np.zeros(values_lengths.size + 1, dtype=np.intp)
+        values_index[1:] = np.cumsum(values_lengths)
         values = np.concatenate(values, axis=0)
-        return masks, values
+        return masks, values, values_index
 
     def spatial_patterns_generator(self):
         for entry in self.error_model.entries:
