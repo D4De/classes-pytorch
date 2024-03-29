@@ -35,7 +35,10 @@ def multiple_channels_multi_block_generator(
 
     num_blocks_per_channel = num_values_per_channel // block_size
     # Consider the remainder block valid only if is at least half of the normal block length
-    if num_values_per_channel % block_size >= block_size // 2 or num_blocks_per_channel == 0:
+    if (
+        num_values_per_channel % block_size >= block_size // 2
+        or num_blocks_per_channel == 0
+    ):
         num_blocks_per_channel += 1
         remainder_block_included = True
     else:

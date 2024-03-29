@@ -15,7 +15,9 @@ from classes.value_generators.value_class import ValueClass
 @dataclass
 class FaultGenerator:
     error_model: ErrorModel
-    generator_mapping: Dict[str, PatternGenerator] = field(default_factory=get_default_generators) 
+    generator_mapping: Dict[str, PatternGenerator] = field(
+        default_factory=get_default_generators
+    )
     layout: str = "CHW"
     fixed_spatial_class: Optional[str] = None
     fixed_spatial_parameters: Optional[Dict[str, Any]] = None
@@ -46,7 +48,7 @@ class FaultGenerator:
             spatial_pattern_name = self.fixed_spatial_class
             random_entry = self.error_model.get_entry_by_name(spatial_pattern_name)
         else:
-            # Pick random entry (spatial pattern) using the frequency 
+            # Pick random entry (spatial pattern) using the frequency
             random_entry = self.error_model.realize_entry()
             spatial_pattern_name = random_entry.spatial_pattern_name
 
@@ -69,7 +71,7 @@ class FaultGenerator:
         )
         # Get the number of corrupted values
         corrupted_values_count = corrupted_value_mask.sum()
-        # Generate an array of integers 
+        # Generate an array of integers
         domain_class_mask = domain_class.generate_value_classes(
             (corrupted_values_count,)
         )
@@ -110,11 +112,13 @@ class FaultGenerator:
 
     def spatial_patterns_generator(self):
         for entry in self.error_model.entries:
-            entry : ErrorModelEntry
+            entry: ErrorModelEntry
             for sp_parameter in entry.spatial_parameters:
-                yield (entry.spatial_pattern_name, self.generator_mapping[entry.spatial_pattern_name], sp_parameter)
-            
-
+                yield (
+                    entry.spatial_pattern_name,
+                    self.generator_mapping[entry.spatial_pattern_name],
+                    sp_parameter,
+                )
 
     def generate_fault_list(
         self,

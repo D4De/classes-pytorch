@@ -25,7 +25,9 @@ class ErrorModel:
             )
 
     @staticmethod
-    def from_json_dict(json_dict: Dict[str, Any], path : Optional[str] = None) -> ErrorModel:
+    def from_json_dict(
+        json_dict: Dict[str, Any], path: Optional[str] = None
+    ) -> ErrorModel:
         entries_names = []
         entries = []
         entries_counts = []
@@ -60,18 +62,22 @@ class ErrorModel:
     def __repr__(self) -> str:
         entries_repr = []
         for en, e, ec in zip(self.entries_name, self.entries, self.entries_counts):
-            entries_repr.append(f'(pattern_name:{en}, entry:{e}, count:{ec})')
-        entries=','.join(entries_repr)
-        return f'Error Model(file_path={self.file_path}, [{entries}])'
+            entries_repr.append(f"(pattern_name:{en}, entry:{e}, count:{ec})")
+        entries = ",".join(entries_repr)
+        return f"Error Model(file_path={self.file_path}, [{entries}])"
 
-    def __get_item__(self, index : int) -> Tuple[str, ErrorModelEntry, int]:
-        return (self.entries_name[index], self.entries[index], self.entries_counts[index])
-    
+    def __get_item__(self, index: int) -> Tuple[str, ErrorModelEntry, int]:
+        return (
+            self.entries_name[index],
+            self.entries[index],
+            self.entries_counts[index],
+        )
+
     def __len__(self) -> int:
         return len(self.entries)
-    
+
     def __contains__(self, x):
         if isinstance(x, str):
             return x in self.entries_name
         else:
-            raise TypeError('Only str argumetns are supported for __contains__')
+            raise TypeError("Only str argumetns are supported for __contains__")

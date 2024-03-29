@@ -41,7 +41,7 @@ class ValueClassDistribution(ABC):
     def get_value_classes_ids(self) -> List[int]:
         """
         Returns the list of ``type_id``s that the distribution may generate.
-        This are the only numbers that the array returned by the method ``ValueClassDistribution.get_value_classes`` 
+        This are the only numbers that the array returned by the method ``ValueClassDistribution.get_value_classes``
         can contain.
         """
         return [v.type_id for v in self.value_classes]
@@ -53,7 +53,7 @@ class ValueClassDistribution(ABC):
 
         The type of distribution depends from the structure of the json.
 
-        The supported types of ``ValueClassDistribution`` in the json are: 
+        The supported types of ``ValueClassDistribution`` in the json are:
         * ``SingleTypeDistribution``
             Generates value classes of only a single type
 
@@ -74,7 +74,7 @@ class ValueClassDistribution(ABC):
             specified in the ranges inside the json.
 
             JSON example:
-            
+
             ```
             {
                 "<type_1>": [75.0,87.5],
@@ -110,7 +110,7 @@ class ValueClassDistribution(ABC):
 
         Args
         ----
-        * json_dict: Dict[str, Any]. A dict that represents a JSON object 
+        * json_dict: Dict[str, Any]. A dict that represents a JSON object
             that represents a ``ValueDistribution`` as specified above
 
         Returns
@@ -144,6 +144,7 @@ class SingleTypeDistribution(ValueClassDistribution):
     A ``ValueClassDistribution`` consisting of a single ``ValueClass``.
     This class always picks the same ``value_class``.
     """
+
     def __init__(self, value_class: ValueClass) -> None:
         super().__init__([value_class])
         self.value_class = value_class
@@ -155,9 +156,9 @@ class SingleTypeDistribution(ValueClassDistribution):
         arr = np.empty(output_shape, dtype=np.uint8)
         arr.fill(self.value_class.type_id)
         return arr
-    
+
     def __repr__(self):
-        return f'SingleTypeDistribution({self.value_class!s}=[100%,100%])'
+        return f"SingleTypeDistribution({self.value_class!s}=[100%,100%])"
 
 
 class DoubleTypeDistribution(ValueClassDistribution):
@@ -191,13 +192,17 @@ class DoubleTypeDistribution(ValueClassDistribution):
     def __repr__(self):
         vc0, vc1 = self.value_classes
         (r0a, r0b), (r1a, r1b) = self.pct_ranges
-        return f'DoubleTypeDistribution({vc0!s}=[{r0a}%,{r0b}%],{vc1!s}=[{r1a}%,{r1b}%])'
+        return (
+            f"DoubleTypeDistribution({vc0!s}=[{r0a}%,{r0b}%],{vc1!s}=[{r1a}%,{r1b}%])"
+        )
+
 
 class RandomDistribution(ValueClassDistribution):
     """
     A ``ValueClassDistribution`` that generates only a single value
-    class. 
+    class.
     """
+
     def __init__(
         self, value_classes: Sequence[ValueClass], freq: Sequence[float]
     ) -> None:
@@ -212,9 +217,10 @@ class RandomDistribution(ValueClassDistribution):
         return random_choice_safe(
             self.get_value_classes_ids(), output_shape, p=self.freq
         )
+
     def __repr__(self) -> str:
         random_values = []
         for vc, fr in zip(self.value_classes, self.freq):
-            random_values.append(f'{vc!s}={fr:.3f}')
-        ','.join(random_values)
-        return f'RandomDistribution({random_values})' 
+            random_values.append(f"{vc!s}={fr:.3f}")
+        ",".join(random_values)
+        return f"RandomDistribution({random_values})"

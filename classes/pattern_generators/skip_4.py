@@ -31,9 +31,9 @@ def skip_4_generator(
     unique_map_indexes = params[
         "unique_channel_indexes"
     ]  # Number of unique locations that are corrupted stacking all channels
-    
+
     # if skip_amount = 4 the index of the first location modulo 4 can be 0,1,2,3
-    remainder = np.random.randint(0, skip_amount)  
+    remainder = np.random.randint(0, skip_amount)
     # Pick from which position (expressed as a channel-raveled index) start the "draw"
     max_starting_map_offset = 1 + max(
         int(
@@ -48,7 +48,10 @@ def skip_4_generator(
     # List of potential corrupted indexes in each one of the corrupted channels selected at step 1
     candidate_locations_per_channel = np.arange(
         starting_map_offset * skip_amount,
-        min((unique_map_indexes + starting_map_offset) * skip_amount, num_values_per_channel),
+        min(
+            (unique_map_indexes + starting_map_offset) * skip_amount,
+            num_values_per_channel,
+        ),
         skip_amount,
     )
     h_coords, w_coords = np.unravel_index(candidate_locations_per_channel, (h, w))

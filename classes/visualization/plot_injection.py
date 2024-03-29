@@ -44,8 +44,10 @@ def visualize(
     invalidate: bool = False,
     suptitile: str = "",
 ):
-    feat_map_axis = [i for i, tensor_ax in enumerate(layout_type) if tensor_ax in ['H','W']]
-    faulty_channels : List[int] = np.where(mask.any(axis=feat_map_axis))[0].tolist()
+    feat_map_axis = [
+        i for i, tensor_ax in enumerate(layout_type) if tensor_ax in ["H", "W"]
+    ]
+    faulty_channels: List[int] = np.where(mask.any(axis=feat_map_axis))[0].tolist()
 
     scene_dim_x, scene_dim_y = split_two(len(faulty_channels))
 
