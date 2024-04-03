@@ -1,8 +1,10 @@
 import math
-from typing import List, Tuple
+from typing import Any, List, Sequence, Tuple
 import numpy as np
 
+import tarfile
 
+tarfile
 def random_int_from_pct_range(
     number: int, range_min_pct: float, range_max_pct: float
 ) -> int:
@@ -47,7 +49,7 @@ def clamp(val, min_val, max_val):
 
 def random_list_with_gap_constraints(
     length: int, max_number: int, min_gap: int, max_gap: int, strict: bool = False
-) -> List[int]:
+) -> np.ndarray:
     """
     Extracts uniformly random ordered a list of integers containg ``length`` numbers between ``0`` and ``max_number``.
     Each number has a distance from the previous between ``min_gap`` and ``max_gap``.
@@ -71,7 +73,7 @@ def random_list_with_gap_constraints(
     if length == 1:
         return np.array([0], dtype=np.int64)
     if min_gap == max_gap:
-        return np.int64(np.arange(0, max_number, min_gap)[:length])
+        return np.arange(0, max_number, min_gap)[:length].astype(np.int64)
 
     gap_list = np.full((length - 1,), min_gap, dtype=np.int64)
 
@@ -148,7 +150,7 @@ def random_channels(
     ]
 
 
-def create_access_tuple(layout: str, **kwargs) -> Tuple[int]:
+def create_access_tuple(layout: str, **kwargs) -> Sequence[Any]:
     """
     Returns a tuple that can be used to be accessed ``numpy`` arrays using the axis
     order specified in ``layout``.

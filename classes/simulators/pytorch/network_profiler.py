@@ -19,13 +19,13 @@ def network_shape_profiler(
     input_data: Optional[torch.Tensor] = None,
     input_shape: Optional[Sequence[int]] = None,
     device=DEFAULT_DEVICE,
-):
+) -> Dict[str, List[int]]:
 
     shape_index = {}
 
     def _make_shape_profile_hook(name):
         def _shape_profile_hook(module, input, output):
-            shape_index[name] = output.shape
+            shape_index[name] = list(output.shape)
             # Do not modify the output
             return output
 

@@ -24,6 +24,39 @@ def create_fill_generator(fill_value) -> Callable:
 
     return fill_generator
 
+def flip_mask_generator(
+    val_range: np.ndarray, size: Tuple[int], dtype=None
+) -> np.ndarray:
+    """
+    Generate a numpy array of bitmasks of the same bitlength of the numeric type of ``val_range``,
+    with a shape of ``size``. The bitmasks are reinterpeted as float of the same length of the datatype.
+    Each float will be inside of the range specified in ``val_range``.
+
+    Args
+    ---
+    * ``val_range``: A ``numpy.ndarray`` of shape ``(2,)``. The two values of the array contains the range where the number of the golden output stand.
+        This generator ignores this range, except for the numeric types of the values.
+    * ``size``: The shape of the output array
+    * ``dtype``: Optional data type of the output array. If not specifed the dtype of the output will be the same of ``val_range``
+
+    Returns
+    ---
+    A ``numpy.ndarray`` of shape ``size`` that contains bitmasks reinterpreted as float.
+    """
+    assert val_range.shape == (
+        2,
+    ), f"Last dimension of the range tensor must be {size} but instead is {val_range.shape[-1]}"
+    if dtype is None:
+        float_type = val_range.dtype
+    else:
+        float_type = dtype
+
+    a, b = val_range
+    n_bits = a.nbytes << 3
+    uint_type = np.dtype(f"uint{n_bits}")
+    shifts = np.random.randint(0, n_bits, size=size).astype(uint_type)
+    uint_mask = 1 << shifts
+    return uint_mask.view(float_type)
 
 def in_range_value_generator(
     val_range: np.ndarray, size: Tuple[int], dtype=None
@@ -34,7 +67,7 @@ def in_range_value_generator(
 
     Args
     ---
-    * ``val_range``: A ``numpy.ndarray`` of shape ``(2,)``. The two values of the array contains the range where the number of the output stand.
+    * ``val_range``: A ``numpy.ndarray`` of shape ``(2,)``. The two values of the array contains the range where the number of the golden output stand.
     * ``size``: The shape of the output array
     * ``dtype``: Optional data type of the output array. If not specifed the dtype of the output will be the same of ``val_range``
 
@@ -80,7 +113,7 @@ def out_of_range_value_generator(
         float_type = dtype
 
     a, b = val_range
-    n_bits = val_range.nbytes << 3
+    n_bits = a.nbytes << 3
     uint_type = np.dtype(f"uint{n_bits}")
 
     floats_less_than_a, floats_more_than_a, floats_a_to_zero = (
@@ -132,8 +165,8 @@ def out_of_range_value_generator(
             dtype=uint_type,
         ).view(float_type)
 
-        result[small_big_choices] = smaller_than_a_values
-        result[~small_big_choices] = bigger_than_b_values
+        result[~small_big_choices] = smaller_than_a_values
+        result[small_big_choices] = bigger_than_b_values
     elif float_sign(a) < 0:
         # a and b are both negative
         #  o----------------------------oxxxxxxxxxxxxxxxxxxxxxxxxxo----------------------o---------------------------------o

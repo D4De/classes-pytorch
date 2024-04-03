@@ -56,18 +56,9 @@ def skip_4_generator(
     )
     h_coords, w_coords = np.unravel_index(candidate_locations_per_channel, (h, w))
     # 3. Select which positions are effectively corrupted
-    pct_corrupted = np.random.uniform(*params["indexes_corruption_pct"])
     for chan in corr_channels:
         access = create_access_tuple(layout, c=chan, h=h_coords, w=w_coords)
-        mask[access] = (
-            np.random.uniform(
-                size=(
-                    len(
-                        candidate_locations_per_channel,
-                    )
-                )
-            )
-            < pct_corrupted
-        )
-
+        pct_corrupted = np.random.uniform(*params["indexes_corruption_pct"])
+        corr_randomness = np.random.uniform(size=len(candidate_locations_per_channel))
+        mask[access] = corr_randomness < pct_corrupted
     return mask

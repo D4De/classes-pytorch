@@ -2,7 +2,7 @@ import os
 import traceback as tb
 
 import argparse
-from typing import Optional
+from typing import Literal, Optional, Sequence
 
 from tqdm import tqdm
 
@@ -10,13 +10,15 @@ from classes.error_models.error_model import ErrorModel
 from classes.error_models.error_model_entry import ErrorModelEntry
 from classes.fault_generator.fault_generator import FaultGenerator
 from classes.pattern_generators import get_default_generators
+from classes.visualization.mask import plot_mask
 
 # You can change here the mapping with a custom one
 GENERATOR_MAPPING = get_default_generators()
 
 
 def test_error_models(
-    folder_path: str,
+    models_path: str,
+    output_path : Optional[str],
     shapes=[
         (1, 1),
         (7, 7),
@@ -30,17 +32,24 @@ def test_error_models(
     ],
     n_channels=[1, 3, 4, 12, 32, 100, 128, 137, 256],
     n_iter=5,
-    layout="CHW",
+    layout : Literal['CHW','HWC'] ="CHW",
 ):
 
-    if os.path.isdir(folder_path):
+    if os.path.isdir(models_path):
         all_models_paths = [
-            os.path.join(folder_path, file) for file in os.listdir(folder_path)
+            os.path.join(models_path, file) for file in os.listdir(models_path)
         ]
     else:
-        all_models_paths = [folder_path]
+        all_models_paths = [models_path]
     total_progr = len(shapes) * len(n_channels) * len(all_models_paths)
     pbar = tqdm(total=total_progr)
+
+
+    if output_path is not None:
+        image_output_folder_path = os.path.join(output_path, 'images')
+        os.makedirs(os.path.join(output_path, 'images'), exist_ok=True)
+    else:
+        image_output_folder_path = None
 
     for file_path in all_models_paths:
         filename = os.path.basename(file_path)
@@ -48,6 +57,7 @@ def test_error_models(
         f_gen = FaultGenerator(error_model, generator_mapping=GENERATOR_MAPPING)
         for shape in shapes:
             for n_channel in n_channels:
+                test_name = f'{filename[:-5]}_{n_channel}_{shape[0]}_{shape[1]}'
                 pbar.set_description(
                     f"{filename[:-5]} {n_channel}x{shape[0]}x{shape[1]}"
                 )
@@ -56,15 +66,17 @@ def test_error_models(
                 elif layout == "HWC":
                     out_shape = tuple(shape) + (n_channel,)
                 test_fault_generator(
-                    f_gen, out_shape, layout, pbar=pbar, n_attempts=n_iter
+                    f_gen, out_shape, image_output_folder_path, test_name, layout, pbar=pbar, n_attempts=n_iter
                 )
                 pbar.update(1)
 
 
 def test_fault_generator(
     fault_gen: FaultGenerator,
-    output_shape,
-    layout="CHW",
+    output_shape : Sequence[int],
+    image_output_folder_path : Optional[str],
+    test_name : str,
+    layout : Literal['CHW','HWC']="CHW",
     n_attempts=100,
     pbar: Optional[tqdm] = None,
 ):
@@ -85,6 +97,9 @@ def test_fault_generator(
                 else:
                     realized_params = flat_params
                 mask = gen_f(output_shape, realized_params, layout)
+                if image_output_folder_path is not None:
+                    image_path = os.path.join(image_output_folder_path, f'{test_name}_{sp_name}_{tr}.png')
+                    plot_mask(mask, layout_type=layout, output_path=image_path, save=True, show=False, invalidate=True, suptitile=str(sp_params))         
             except Exception as e:
 
                 print(f"Failed generation")
@@ -117,6 +132,14 @@ def parse_args():
     )
 
     parser.add_argument(
+        "-o",
+        "--output-path",
+        required=False,
+        type=str,
+        help="Output path for the test report and images",
+    )
+
+    parser.add_argument(
         "-l",
         "--layout",
         default="CHW",
@@ -139,9 +162,15 @@ def parse_args():
         help="Generates visualization for each generated mask, saving them to image files.",
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+
+    if args.visualize and args.output_path is None:
+        parser.error("--visualize requires --output-path to be specified.")
+
+    return args
 
 
 if __name__ == "__main__":
     args = parse_args()
-    test_error_models(args.error_model_path, n_iter=args.iterations, layout=args.layout)
+    test_error_models(args.error_model_path, output_path=args.output_path, n_iter=args.iterations, layout=args.layout)

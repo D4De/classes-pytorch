@@ -6,6 +6,7 @@ from classes.value_generators.value_generators import (
     create_fill_generator,
     in_range_value_generator,
     out_of_range_value_generator,
+    flip_mask_generator
 )
 
 
@@ -33,7 +34,7 @@ class ValueClass(Enum):
     """
     The golden values is replaced with a ``NaN``
     """
-    FLIP = (5, "flip", out_of_range_value_generator)
+    FLIP = (5, "flip", flip_mask_generator)
     """
     A bit of the golden values is flipped. (Mapped to out of range due to rarity)
     """

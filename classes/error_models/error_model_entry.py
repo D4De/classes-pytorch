@@ -38,7 +38,6 @@ class ErrorModelEntry:
         )
 
     def realize_spatial_parameters(self) -> Dict[str, Any]:
-        print(self.spatial_parameters)
         idx_choice = random_choice_safe(
             len(self.spatial_parameters), p=self.spatial_classes_counts
         )

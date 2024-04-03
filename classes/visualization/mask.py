@@ -35,7 +35,7 @@ def is_square(apositiveint: int) -> bool:
     return True
 
 
-def visualize(
+def plot_mask(
     mask: np.ndarray,
     layout_type: Literal["CHW", "HWC"],
     output_path: Union[str, None] = None,
@@ -44,14 +44,15 @@ def visualize(
     invalidate: bool = False,
     suptitile: str = "",
 ):
-    feat_map_axis = [
+    feat_map_axis = tuple([
         i for i, tensor_ax in enumerate(layout_type) if tensor_ax in ["H", "W"]
-    ]
+    ])
     faulty_channels: List[int] = np.where(mask.any(axis=feat_map_axis))[0].tolist()
 
     scene_dim_x, scene_dim_y = split_two(len(faulty_channels))
 
-    if not invalidate and os.path.exists(output_path):
+    if not invalidate and output_path and os.path.exists(output_path):
+        print('No')
         return
 
     fig, axs = plt.subplots(scene_dim_x, scene_dim_y)
@@ -87,10 +88,10 @@ def visualize(
         curr_axs.set_title(f"CH {curr_C}", fontsize=9)
 
     # Add colorbar legend
-    fig.subplots_adjust(right=0.8)
-    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    cbar = fig.colorbar(img, cax=cbar_ax)
-    cbar.ax.set_yticklabels(labels)
+    #fig.subplots_adjust(right=0.8)
+    #cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    #cbar = fig.colorbar(img, cax=cbar_ax)
+    #cbar.ax.set_yticklabels(labels)
 
     if show:
         plt.show()

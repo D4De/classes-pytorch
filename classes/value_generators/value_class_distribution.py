@@ -155,7 +155,6 @@ class SingleTypeDistribution(ValueClassDistribution):
         return self.value_class
 
     def generate_value_classes(self, output_shape: Sequence[int]) -> np.ndarray:
-        print(self.value_class.type_id)
         arr = np.full(output_shape, fill_value=self.value_class.type_id, dtype=np.uint8)
         return arr
 

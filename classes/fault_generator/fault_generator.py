@@ -70,9 +70,8 @@ class FaultGenerator:
             output_shape, sp_parameters, self.layout
         )
         # Get the number of corrupted values
-        corrupted_values_count = corrupted_value_mask.sum()
+        corrupted_values_count = int(corrupted_value_mask.sum())
         # Generate an array of integers
-        print(domain_class)
         domain_class_mask = domain_class.generate_value_classes(
             (corrupted_values_count,)
         )
@@ -87,7 +86,7 @@ class FaultGenerator:
                 )
 
         corrupted_value_mask[corrupted_value_mask != 0] = domain_class_mask
-        return corrupted_value_mask, corrupted_values
+        return corrupted_value_mask, corrupted_values, spatial_pattern_name, sp_parameters
 
     def generate_batched_mask(
         self,
@@ -98,21 +97,26 @@ class FaultGenerator:
     ):
         masks = []
         values = []
+        sp_classes = []
+        sp_parameters = []
 
         assert batch_size > 0, "batch_size must be a positive int"
 
         for i in range(batch_size):
-            mask, corr_value = self.generate_mask(
+            mask, corr_value, sp_class, sp_parameter = self.generate_mask(
                 output_shape, value_range, dtype=dtype
             )
             masks.append(mask)
             values.append(corr_value)
+            sp_classes.append(sp_class)
+            sp_parameters.append(sp_parameter)
         masks = np.stack(masks, axis=0)
-        values_lengths = np.array(map(np.size, corr_value), dtype=np.intp)
+        values_lengths = np.array(list(map(np.size, values)), dtype=np.intp)
         values_index = np.zeros(values_lengths.size + 1, dtype=np.intp)
         values_index[1:] = np.cumsum(values_lengths)
         values = np.concatenate(values, axis=0)
-        return masks, values, values_index
+
+        return masks, values, values_index, sp_classes, sp_parameters
 
     def spatial_patterns_generator(self):
         for entry in self.error_model.entries:
