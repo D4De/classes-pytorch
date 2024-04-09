@@ -14,18 +14,47 @@ import numpy as np
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def network_shape_profiler(
-    network: nn.Module,
+def module_shape_profiler(
+    module: nn.Module,
     input_data: Optional[torch.Tensor] = None,
     input_shape: Optional[Sequence[int]] = None,
     device=DEFAULT_DEVICE,
 ) -> Dict[str, List[int]]:
+    """
+    Executes a forward pass in a Module to determine the shape of all
+    the children modules at every nesting level.
+
+    The function takes in input the module and alternatively one
+    of `input_data` and `input_shape`. And returns a dictionary containing all the shapes of submodules.
+
+    Args
+    ----
+    * `module : nn.Module`. The module to be profiled
+    * `input_data : Tensor | None`. A dummy input accepted from the module
+    * `input_shape : Tensor | None`. The shape of an input tensor accepted by the network. This must be specified only if `input_data` is not specified.
+    * `device`: The torch device where the test inference is executed. If not specified defaults to cuda if available, otherwise cpu. Note that the model
+                will be moved to device as a side-effect of this function.
+
+    Returns
+    ---
+    A dictionary that has the submodules fully qualified names as keys and their corresponding output shapes
+    as the corresponding values.
+
+    Raises
+    ---
+    * `ValueError` if both or none of `input_shape` and `input_data` are specified.
+    """
 
     shape_index = {}
 
+    # This hook will be added at each submodule and:
+    # * gets the size of the output after the execution of a submodule
+    # * puts in the result dictionary (shape_index)
+    # * does not modify the output (returning it as given)
     def _make_shape_profile_hook(name):
         def _shape_profile_hook(module, input, output):
-            shape_index[name] = list(output.shape)
+            if isinstance(output, torch.Tensor):
+                shape_index[name] = output.size()
             # Do not modify the output
             return output
 
@@ -40,16 +69,18 @@ def network_shape_profiler(
     else:
         raise ValueError("One and only one between input_data and input_shape must be specified.")
     
-    network.to(device)
-
+    module.to(device)
+    # Store the handles to remove the hook after the profiling
     hook_handles: List[RemovableHandle] = []
 
     try:
-        for name, module in network.named_modules():
+        for name, module in module.named_modules():
             handle = module.register_forward_hook(_make_shape_profile_hook(name))
             hook_handles.append(handle)
-        network(input_data)
+        with torch.no_grad():
+            module(input_data)
     finally:
+        # Restore the network as it was before (removing hooks applied in this function)
         for handle in hook_handles:
             handle.remove()
 
@@ -93,10 +124,11 @@ def network_range_profiler(
         for name, module in network.named_modules():
             handle = module.register_forward_hook(_make_range_profile_hook(name))
             hook_handles.append(handle)
-        for data in dataloader:
-            network_input = network_input_fn(data)
-            network_input = network_input.to(device)
-            output = network(network_input)
+        with torch.no_grad():
+            for data in dataloader:
+                network_input = network_input_fn(data)
+                network_input = network_input.to(device)
+                output = network(network_input)
 
     finally:
         for handle in hook_handles:

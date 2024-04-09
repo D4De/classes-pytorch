@@ -40,3 +40,4 @@ def random_choice_safe(a, size=None, replace=True, p=None) -> Any:
         )  # Rescale vector to make it a probability vector (sum to 1)
         p = p1
     return np.random.choice(a, size=size, replace=replace, p=p)
+

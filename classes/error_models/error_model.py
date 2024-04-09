@@ -81,3 +81,26 @@ class ErrorModel:
             return x in self.entries_name
         else:
             raise TypeError("Only str argumetns are supported for __contains__")
+
+
+    def spatial_patterns_generator(self):
+        """
+        Creates a Generator that enumerates all the combinations of ErrorModelEntry and spatial parameters
+        present in the error model.
+        Useful for testing that all the possible parameters contained in the error model work well
+
+        Returns
+        ---
+        A Generator, that generates tuples. Each tuple contains in order:
+        * The name of the error model entry (or spatial pattern)
+        * The generator function of that spatial pattern
+        * A str-indexed dict that contains the spatial parameters.
+        """
+        for entry in self.entries:
+            entry: ErrorModelEntry
+            for sp_parameter in entry.spatial_parameters:
+                yield (
+                    entry.spatial_pattern_name,
+                    self.generator_mapping[entry.spatial_pattern_name],
+                    sp_parameter,
+                )

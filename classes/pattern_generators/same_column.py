@@ -16,7 +16,7 @@ def same_row_generator(
     mask = np.zeros(output_shape, dtype=np.uint8)
 
     num_channels = c
-    col_corruption_pct = params["col_corruption_pct"]
+    col_corruption_pct = params["col_corruption_pct"] # type : ignore
     max_cardinality = params["max_cardinality"]
     min_value_skip = params["min_value_skip"]
     max_value_skip = params["max_value_skip"]

@@ -1,9 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Sequence
 
-from tqdm import tqdm
 from classes.error_models.error_model import ErrorModel
-from classes.error_models.error_model_entry import ErrorModelEntry
+from classes.fault_generator.fault import Fault, FaultBatch
 from classes.value_generators.value_class_distribution import ValueClassDistribution
 from classes.pattern_generators import get_default_generators, PatternGenerator
 
@@ -71,7 +70,7 @@ class FaultGenerator:
         )
         # Get the number of corrupted values
         corrupted_values_count = int(corrupted_value_mask.sum())
-        # Generate an array of integers
+        # Generate a list of value classes ids of lenght equal to the number of corrupted values
         domain_class_mask = domain_class.generate_value_classes(
             (corrupted_values_count,)
         )
@@ -86,7 +85,7 @@ class FaultGenerator:
                 )
 
         corrupted_value_mask[corrupted_value_mask != 0] = domain_class_mask
-        return corrupted_value_mask, corrupted_values, spatial_pattern_name, sp_parameters
+        return Fault(corrupted_value_mask, corrupted_values, spatial_pattern_name, sp_parameters)
 
     def generate_batched_mask(
         self,
@@ -116,15 +115,7 @@ class FaultGenerator:
         values_index[1:] = np.cumsum(values_lengths)
         values = np.concatenate(values, axis=0)
 
-        return masks, values, values_index, sp_classes, sp_parameters
+        return FaultBatch(masks, values, values_index, sp_classes, sp_parameters)
 
-    def spatial_patterns_generator(self):
-        for entry in self.error_model.entries:
-            entry: ErrorModelEntry
-            for sp_parameter in entry.spatial_parameters:
-                yield (
-                    entry.spatial_pattern_name,
-                    self.generator_mapping[entry.spatial_pattern_name],
-                    sp_parameter,
-                )
+
 

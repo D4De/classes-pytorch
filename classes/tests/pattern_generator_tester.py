@@ -80,7 +80,7 @@ def test_fault_generator(
     n_attempts=100,
     pbar: Optional[tqdm] = None,
 ):
-    for sp_name, gen_f, sp_params in fault_gen.spatial_patterns_generator():
+    for sp_name, gen_f, sp_params in fault_gen.error_model.spatial_patterns_generator():
         if pbar is not None:
             pbar.set_postfix_str(sp_name)
         flat_params = {**sp_params["keys"], **sp_params["stats"]}
