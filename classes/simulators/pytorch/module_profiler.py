@@ -19,6 +19,7 @@ def module_shape_profiler(
     input_data: Optional[torch.Tensor] = None,
     input_shape: Optional[Sequence[int]] = None,
     device=DEFAULT_DEVICE,
+    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True
 ) -> Dict[str, List[int]]:
     """
     Executes a forward pass in a Module to determine the shape of all
@@ -34,7 +35,9 @@ def module_shape_profiler(
     * `input_shape : Tensor | None`. The shape of an input tensor accepted by the network. This must be specified only if `input_data` is not specified.
     * `device`: The torch device where the test inference is executed. If not specified defaults to cuda if available, otherwise cpu. Note that the model
                 will be moved to device as a side-effect of this function.
-
+    * `module_filter_fn : Callable[[str, nn.Module], bool]`. A function that takes in input the module name and the module itself and returns a boolean that says
+                whether the profiling should happen in that layer. If not specified, the output shape of all modules will be profiled.
+                
     Returns
     ---
     A dictionary that has the submodules fully qualified names as keys and their corresponding output shapes
@@ -70,13 +73,15 @@ def module_shape_profiler(
         raise ValueError("One and only one between input_data and input_shape must be specified.")
     
     module.to(device)
+
+    module.eval()
     # Store the handles to remove the hook after the profiling
     hook_handles: List[RemovableHandle] = []
-
     try:
-        for name, module in module.named_modules():
-            handle = module.register_forward_hook(_make_shape_profile_hook(name))
-            hook_handles.append(handle)
+        for name, mod in module.named_modules():
+            if module_filter_fn(name, mod):
+                handle = mod.register_forward_hook(_make_shape_profile_hook(name))
+                hook_handles.append(handle)
         with torch.no_grad():
             module(input_data)
     finally:
@@ -87,7 +92,7 @@ def module_shape_profiler(
     return shape_index
 
 
-def network_range_profiler(
+def module_range_profiler(
     network: nn.Module,
     dataloader: DataLoader,
     network_input_fn: Callable = itemgetter(0),

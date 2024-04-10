@@ -19,7 +19,7 @@ from classes.simulators.pytorch.error_model_mapper import (
     ModuleToFaultGeneratorMapper,
     create_module_to_generator_mapper,
 )
-from classes.simulators.pytorch.network_profiler import module_shape_profiler
+from classes.simulators.pytorch.module_profiler import module_shape_profiler
 
 
 
@@ -47,9 +47,15 @@ class PyTorchFaultListGenerator:
         else:
             raise ValueError("One and only one between input_data and input_shape must be specified.")
 
+        # Profile only the layers to be injected (the ones that have a fault generator)
+        profiler_filter = lambda name, mod: module_to_fault_generator_fn(name, mod) is not None
+
 
         self.modules_output_shapes = module_shape_profiler(
-            self.network, input_data, input_shape, device
+            self.network, 
+            input_data, 
+            input_shape, device, 
+            profiler_filter
         )
 
         self.injectable_layers = self.get_injectable_layers_names()
@@ -134,7 +140,8 @@ class PyTorchFaultListGenerator:
                 "modules_output_shapes": self.modules_output_shapes,
                 "n_faults_per_module": n_faults,
                 "n_injectable_layers": self.num_injectable_layers,
-                "fault_batch_size": fault_batch_size
+                "injectable_layers": self.injectable_layers,
+                "fault_batch_size": fault_batch_size,
             }
 
             with open(os.path.join(temp_output_dir, 'fault_list.json'),'w') as f:
