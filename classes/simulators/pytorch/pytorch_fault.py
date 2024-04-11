@@ -6,6 +6,7 @@ import torch
 
 @dataclass
 class PyTorchFault:
+    module_name : str
     fault_id : int
     corrupted_value_mask : torch.Tensor
     corrupted_values : torch.Tensor
@@ -26,6 +27,7 @@ class PyTorchFault:
 
 @dataclass
 class PyTorchFaultBatch:
+    module_names : Sequence[str]
     fault_ids : Sequence[int]
     corrupted_value_mask : torch.Tensor
     corrupted_values : torch.Tensor
@@ -40,9 +42,10 @@ class PyTorchFaultBatch:
     def batch_size(self) -> int:
         return self.corrupted_value_mask.size(0)
     
-    def get_element(self, idx):
+    def get_element(self, idx : int):
         value_begin, value_end = self.corrupted_values_index[idx:idx+1]
         return PyTorchFault(
+            self.module_names[idx],
             self.fault_ids[idx],
             self.corrupted_value_mask[idx],
             self.corrupted_values[value_begin:value_end],

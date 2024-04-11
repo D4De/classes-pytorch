@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,7 +11,7 @@ from torch.utils.hooks import RemovableHandle
 import os
 import math
 
-from typing import Any, Callable, Generator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Generator, List, Mapping, Optional, Sequence, Tuple
 
 from tqdm import tqdm
 
@@ -22,10 +23,47 @@ from classes.simulators.pytorch.error_model_mapper import (
 from classes.simulators.pytorch.module_profiler import module_shape_profiler
 
 
-
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-class PyTorchFaultListGenerator:
+
+@dataclass
+class PyTorchFaultListInfo:
+    input_shape : Sequence[int]
+    batch_dimension : Optional[int]
+    modules_output_shapes : Mapping[str, Sequence[int]]
+    n_faults_per_module : int
+    fault_batch_size : int
+    injectable_layers : Sequence[str]
+
+    @classmethod
+    def load_fault_list_info(cls, fault_list_path):
+        with tarfile.TarFile(fault_list_path, 'r') as tarf:
+            member_file = tarf.extractfile('fault_list.json')
+            if not member_file:
+                raise FileNotFoundError(f'Fault List descriptor file fault_list.json not found in fault list archive')
+            try:
+                fault_list_info = json.load(member_file)
+                input_shape = fault_list_info['input_shape']
+                batch_dimension = fault_list_info['batch_dimension']
+                modules_output_shapes = fault_list_info['modules_output_shapes']
+                n_faults_per_module = fault_list_info['n_faults_per_module']
+                fault_batch_size = fault_list_info['fault_batch_size']
+                injectable_layers = fault_list_info['injectable_layers']
+                return cls(input_shape, batch_dimension, modules_output_shapes, n_faults_per_module, fault_batch_size, injectable_layers)
+            finally:
+                member_file.close()
+
+    def to_dict(self) -> Mapping[str, Any]:
+        return {
+                "input_shape": self.input_shape,
+                "batch_dimension": self.batch_dimension,
+                "modules_output_shapes": self.modules_output_shapes,
+                "n_faults_per_module": self.n_faults_per_module,
+                "injectable_layers": self.injectable_layers,
+                "fault_batch_size": self.fault_batch_size,
+            }
+
+class PyTorchFaultList:
     def __init__(
         self,
         network: nn.Module,
@@ -134,18 +172,17 @@ class PyTorchFaultListGenerator:
             if show_progress:
                 pbar = tqdm(total=n_iters)
             
-            fault_list_info = {
-                "input_shape": list(self.input_shape),
-                "batch_dimension": self.batch_axis,
-                "modules_output_shapes": self.modules_output_shapes,
-                "n_faults_per_module": n_faults,
-                "n_injectable_layers": self.num_injectable_layers,
-                "injectable_layers": self.injectable_layers,
-                "fault_batch_size": fault_batch_size,
-            }
+            self.info = PyTorchFaultListInfo(
+                input_shape=list(self.input_shape),
+                batch_dimension=self.batch_axis,
+                modules_output_shapes=self.modules_output_shapes,
+                n_faults_per_module=n_faults,
+                injectable_layers=self.injectable_layers,
+                fault_batch_size=fault_batch_size,
+            )
 
             with open(os.path.join(temp_output_dir, 'fault_list.json'),'w') as f:
-                json.dump(fault_list_info, f)
+                json.dump(self.info.to_dict(), f)
 
 
             for name, module in self.network.named_modules():
