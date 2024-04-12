@@ -26,13 +26,13 @@ class FaultBatch:
         # Enable tuple unpacking
         return iter(astuple(self))
     
-    def get_element(self, idx):
+    def get_element(self, idx : int):
         value_begin, value_end = self.corrupted_values_index[idx:idx+1]
 
         return Fault(
             self.corrupted_value_mask[idx],
             self.corrupted_values[value_begin:value_end],
-            self.spatial_pattern_name[idx],
+            self.spatial_pattern_names[idx],
             self.sp_parameters[idx]
         )
     

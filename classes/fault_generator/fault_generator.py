@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 from classes.error_models.error_model import ErrorModel
 from classes.fault_generator.fault import Fault, FaultBatch
@@ -14,7 +14,7 @@ from classes.value_generators.value_class import ValueClass
 @dataclass
 class FaultGenerator:
     error_model: ErrorModel
-    generator_mapping: Dict[str, PatternGenerator] = field(
+    generator_mapping: Mapping[str, PatternGenerator] = field(
         default_factory=get_default_generators
     )
     layout: str = "CHW"

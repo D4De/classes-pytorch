@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, Mapping, Sequence
 from .bullet_wake import bullet_wake_generator
 from .multiple_channels_multi_block import multiple_channels_multi_block_generator
 from .same_column import same_row_generator
@@ -18,7 +18,7 @@ import numpy as np
 PatternGenerator = Callable[[Sequence[int], Dict[str, Any], str], np.ndarray]
 
 
-def get_default_generators() -> Dict[str, PatternGenerator]:
+def get_default_generators() -> Mapping[str, PatternGenerator]:
     return {
         "bullet_wake": bullet_wake_generator,
         "multi_channel_block": multiple_channels_multi_block_generator,

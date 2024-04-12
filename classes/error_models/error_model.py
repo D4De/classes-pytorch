@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from classes.error_models.error_model_entry import ErrorModelEntry
+from classes.pattern_generators import PatternGenerator, get_default_generators
 from classes.utils import random_choice_safe
 
 
@@ -83,11 +84,16 @@ class ErrorModel:
             raise TypeError("Only str argumetns are supported for __contains__")
 
 
-    def spatial_patterns_generator(self):
+    def spatial_patterns_generator(self, generator_mapping : Mapping[str, PatternGenerator]=get_default_generators()):
         """
         Creates a Generator that enumerates all the combinations of ErrorModelEntry and spatial parameters
         present in the error model.
         Useful for testing that all the possible parameters contained in the error model work well
+
+        Args
+        ---
+        * ``generator_mapping : Mapping[str, PatternGenerator]``. A mapping that associates to each spatial class name its generaton
+            function. If not specified the default one (``get_default_generators()``) is used.
 
         Returns
         ---
@@ -101,6 +107,6 @@ class ErrorModel:
             for sp_parameter in entry.spatial_parameters:
                 yield (
                     entry.spatial_pattern_name,
-                    self.generator_mapping[entry.spatial_pattern_name],
+                    generator_mapping[entry.spatial_pattern_name],
                     sp_parameter,
                 )
