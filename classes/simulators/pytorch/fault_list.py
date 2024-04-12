@@ -295,7 +295,11 @@ class PyTorchFaultList:
                         "sp_classes": fault_batch.spatial_pattern_names,
                         "sp_parameters": fault_batch.sp_parameters,
                         "module": np.asarray(module_name),
-                        "seq": np
+                        "seq": np.int64(count)
+                    }
+                    np.savez_compressed(file_name, **npz_dict)
+                    count += 1
+                    
                     if pbar:
                         pbar.update(1)
             # Archive all files
