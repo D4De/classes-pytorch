@@ -64,7 +64,6 @@ class PyTorchFaultListInfo:
             }
 
 class PyTorchFaultList:
-
     def __init__(
         self,
         network: nn.Module,
@@ -271,7 +270,9 @@ class PyTorchFaultList:
                 input_shape=list(self.input_shape),
                 batch_dimension=self.batch_axis,
                 modules_output_shapes=self.modules_output_shapes,
-                n_faults_per_mod
+                n_faults_per_module=n_faults_per_module,
+                fault_batch_size=fault_batch_size,
+                injectable_layers=self.injectable_layers)
 
             with open(os.path.join(temp_output_dir, 'fault_list.json'),'w') as f:
                 json.dump(info.to_dict(), f)
