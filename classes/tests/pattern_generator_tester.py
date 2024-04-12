@@ -93,6 +93,7 @@ def test_fault_generator(
     n_attempts=100,
     pbar: Optional[tqdm] = None,
 ):
+    count = 0
     for sp_name, gen_f, sp_params in fault_gen.error_model.spatial_patterns_generator():
         if pbar is not None:
             pbar.set_postfix_str(sp_name)
@@ -111,8 +112,8 @@ def test_fault_generator(
                     realized_params = flat_params
                 mask = gen_f(output_shape, realized_params, layout)
                 if image_output_folder_path is not None:
-                    image_path = os.path.join(image_output_folder_path, f'{test_name}_{sp_name}_{tr}.png')
-                    plot_mask(mask, layout_type=layout, output_path=image_path, save=True, show=False, invalidate=True, suptitile=str(sp_params))         
+                    image_path = os.path.join(image_output_folder_path, f'{test_name}_{sp_name}_{count}_{tr}.png')
+                    plot_mask(mask, layout_type=layout, output_path=image_path, save=True, show=False, invalidate=True, description=str(sp_params))         
             except Exception as e:
 
                 print(f"Failed generation")
@@ -124,6 +125,7 @@ def test_fault_generator(
                 print(f"Original params: {sp_params}")
                 print(f"Realized Params: {realized_params}")
                 raise e
+        count += 1
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -173,10 +175,6 @@ def parse_args():
     
     args = parser.parse_args()
 
-
-    if args.output_path is None:
-        parser.error("--visualize requires --output-path to be specified.")
-
     new_channel_sizes = []
     for i, ch in enumerate(args.channel_sizes):
         members = ch.split(',')
@@ -195,3 +193,4 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     test_error_models(args.error_model_path, output_path=args.output_path, n_iter=args.iterations, layout=args.layout, channel_sizes=args.channel_sizes, n_channels=args.n_channels)
+    print('Test completed successfully')

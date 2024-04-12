@@ -1,17 +1,19 @@
 from math import sqrt
 import math
 import os
+import json
 from typing import List, Literal, Tuple, Union
 
 
+from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
 import numpy as np
 
-levels = [0, 1, 2, 3, 4, 5]
-labels = [""] + ["nan", "zero", "in_range", "out_of_range"]
-colors = ["white", "black", "red", "orange", "brown"]
+levels = [0, 1, 2]
+labels = [""] + ["clean", "corrupted"]
+colors = ["white", "red"]
 cmap, norm = matplotlib.colors.from_levels_and_colors(levels, colors, extend="neither")
 
 
@@ -34,6 +36,19 @@ def is_square(apositiveint: int) -> bool:
         seen.add(x)
     return True
 
+def axs_generator(axs, scene_dim_x):
+        # Pick the ax where to draw the channel
+    if isinstance(axs, Axes):
+        yield axs
+        return
+    for i in range(axs.size):
+        if len(axs.shape) == 1:
+            # Multiple plots arranged in a line
+            yield axs[i]
+        else:
+            # Plots arranged in a 2D Grid
+            yield axs[i % scene_dim_x, i // scene_dim_x]
+
 
 def plot_mask(
     mask: np.ndarray,
@@ -42,7 +57,7 @@ def plot_mask(
     save: bool = False,
     show: bool = True,
     invalidate: bool = False,
-    suptitile: str = "",
+    description: str = "",
 ):
     feat_map_axis = tuple([
         i for i, tensor_ax in enumerate(layout_type) if tensor_ax in ["H", "W"]
@@ -51,13 +66,20 @@ def plot_mask(
 
     scene_dim_x, scene_dim_y = split_two(len(faulty_channels))
 
+    if len(description) > 0:
+        try:
+            suptitle = json.dumps(json.loads(description), indent=2)
+        except ValueError:
+            suptitle = description
+    else:
+        suptitle = ""
     if not invalidate and output_path and os.path.exists(output_path):
         print('No')
         return
 
-    fig, axs = plt.subplots(scene_dim_x, scene_dim_y)
-    if len(suptitile) > 0:
-        plt.suptitle(suptitile)
+    fig, axs = plt.subplots(scene_dim_x, scene_dim_y, figsize=(6, 7))
+    if len(suptitle) > 0:
+        plt.suptitle(suptitle, fontsize=8, wrap=True)
 
     for i, curr_C in enumerate(faulty_channels):
         if layout_type == "CHW":
@@ -77,21 +99,19 @@ def plot_mask(
             curr_axs = axs[i % scene_dim_x, i // scene_dim_x]
 
         # Show image with diff
-        img = sns.heatmap(slice_diff, ax=curr_axs)
-        # img = curr_axs.imshow(slice_diff, cmap=cmap, norm=norm, interpolation="nearest")
-        # Clear Axis
-        curr_axs.set_yticks([])
-        curr_axs.set_xticks([])
-        curr_axs.set_yticklabels([])
-        curr_axs.set_xticklabels([])
+        img = curr_axs.imshow(slice_diff, cmap=cmap, norm=norm, interpolation="nearest")
+
         # Label
         curr_axs.set_title(f"CH {curr_C}", fontsize=9)
 
-    # Add colorbar legend
-    #fig.subplots_adjust(right=0.8)
-    #cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    #cbar = fig.colorbar(img, cax=cbar_ax)
-    #cbar.ax.set_yticklabels(labels)
+    # Remove ticks from all axes
+    for ax in axs_generator(axs, scene_dim_x): 
+        ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_yticklabels([])
+        ax.set_xticklabels([])
+
+
 
     if show:
         plt.show()
