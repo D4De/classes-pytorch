@@ -20,13 +20,11 @@ def rectangles_generator(
         *params["affected_channels_pct"]
     )
 
-    rectangle_width = params["rectangle_width"]
-    rectangle_height = params["rectangle_height"]
     channel_height = h
     channel_width = w
+    rectangle_width = min(params["rectangle_width"], channel_width)
+    rectangle_height = min(params["rectangle_height"], channel_height)
 
-    if channel_height < rectangle_height or channel_width < rectangle_width:
-        return None
 
     random_top = np.random.randint(0, max(channel_height - rectangle_height, 1))
     random_left = np.random.randint(0, max(channel_width - rectangle_width, 1))
