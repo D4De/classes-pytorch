@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Callable, List, Mapping, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -8,8 +8,11 @@ from torch.utils.data import DataLoader
 from collections import defaultdict
 from operator import itemgetter
 
+from tqdm import tqdm
 
 import numpy as np
+import json
+import os
 
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -20,7 +23,7 @@ def module_shape_profiler(
     input_shape: Optional[Sequence[int]] = None,
     device=DEFAULT_DEVICE,
     module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True
-) -> Dict[str, List[int]]:
+) -> Mapping[str, List[int]]:
     """
     Executes a forward pass in a Module to determine the shape of all
     the children modules at every nesting level.
@@ -80,10 +83,8 @@ def module_shape_profiler(
     try:
         for name, mod in module.named_modules():
             if module_filter_fn(name, mod):
-                handle = mod.register_forward_hook(_make_shape_profile_hook(name))
-                hook_handles.append(handle)
-        with torch.no_grad():
-            module(input_data)
+                with torch.no_grad():
+                    module(input_data)
     finally:
         # Restore the network as it was before (removing hooks applied in this function)
         for handle in hook_handles:
@@ -98,8 +99,9 @@ def module_range_profiler(
     network_input_fn: Callable = itemgetter(0),
     torch_dtype=torch.float32,
     np_output_dtype=np.float32,
+    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True,
     device=DEFAULT_DEVICE,
-) -> Dict[str, np.ndarray]:
+) -> Mapping[str, np.ndarray]:
 
     min_value_per_module = defaultdict(
         lambda: torch.tensor(np.infty, dtype=torch_dtype).to(device)
@@ -125,12 +127,16 @@ def module_range_profiler(
 
     hook_handles: List[RemovableHandle] = []
 
+    profiled_modules_names = []
+
     try:
         for name, module in network.named_modules():
-            handle = module.register_forward_hook(_make_range_profile_hook(name))
-            hook_handles.append(handle)
+            if module_filter_fn(name, module):
+                profiled_modules_names.append(name)
+                handle = module.register_forward_hook(_make_range_profile_hook(name))
+                hook_handles.append(handle)
         with torch.no_grad():
-            for data in dataloader:
+            for data in tqdm(dataloader, desc='Range Profiling'):
                 network_input = network_input_fn(data)
                 network_input = network_input.to(device)
                 output = network(network_input)
@@ -141,10 +147,16 @@ def module_range_profiler(
 
     result = {}
 
-    for module_name in min_value_per_module.keys():
-        min_val = min_value_per_module[name].cpu().numpy()
-        max_val = max_value_per_module[name].cpu().numpy()
-
+    for module_name in profiled_modules_names:
+        min_val = min_value_per_module[module_name].cpu().numpy()
+        max_val = max_value_per_module[module_name].cpu().numpy()
         result[module_name] = np.array([min_val, max_val], dtype=np_output_dtype)
 
     return result
+
+
+def save_range_profile_to_json(file_path : str, range_profile : Mapping[str, np.ndarray], indent=2):
+    os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
+    range_dict =  {mod : rng.tolist() for mod, rng in range_profile.items()}
+    with open(file_path, 'w') as f:
+        json.dump(range_dict, f, indent=indent)

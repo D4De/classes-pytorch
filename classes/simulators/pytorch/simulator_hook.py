@@ -8,6 +8,9 @@ from contextlib import contextmanager
 def create_simulator_hook(
     pytorch_fault : PyTorchFault
 ):
+    """
+    Creates a pytorch forward hook that can be attached to
+    """
     def _error_simulator_hook(module, input, output):
         mask = pytorch_fault.corrupted_value_mask
         output[:, mask != 0] = pytorch_fault.corrupted_values
