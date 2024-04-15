@@ -36,8 +36,9 @@ def is_square(apositiveint: int) -> bool:
         seen.add(x)
     return True
 
+
 def axs_generator(axs, scene_dim_x):
-        # Pick the ax where to draw the channel
+    # Pick the ax where to draw the channel
     if isinstance(axs, Axes):
         yield axs
         return
@@ -59,9 +60,9 @@ def plot_mask(
     invalidate: bool = False,
     description: str = "",
 ):
-    feat_map_axis = tuple([
-        i for i, tensor_ax in enumerate(layout_type) if tensor_ax in ["H", "W"]
-    ])
+    feat_map_axis = tuple(
+        [i for i, tensor_ax in enumerate(layout_type) if tensor_ax in ["H", "W"]]
+    )
     faulty_channels: List[int] = np.where(mask.any(axis=feat_map_axis))[0].tolist()
 
     scene_dim_x, scene_dim_y = split_two(len(faulty_channels))
@@ -74,7 +75,7 @@ def plot_mask(
     else:
         suptitle = ""
     if not invalidate and output_path and os.path.exists(output_path):
-        print('No')
+        print("No")
         return
 
     fig, axs = plt.subplots(scene_dim_x, scene_dim_y, figsize=(6, 7))
@@ -105,13 +106,11 @@ def plot_mask(
         curr_axs.set_title(f"CH {curr_C}", fontsize=9)
 
     # Remove ticks from all axes
-    for ax in axs_generator(axs, scene_dim_x): 
+    for ax in axs_generator(axs, scene_dim_x):
         ax.set_yticks([])
         ax.set_xticks([])
         ax.set_yticklabels([])
         ax.set_xticklabels([])
-
-
 
     if show:
         plt.show()

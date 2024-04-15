@@ -25,7 +25,7 @@ def create_module_to_generator_mapper(
     configure with the relevant model error for that Module.
 
     This function returns a default implementation of the mapper that consides only the operator
-    of nn.Module and returns a pre-created instance of `FaultGenerator` loaded with the 
+    of nn.Module and returns a pre-created instance of `FaultGenerator` loaded with the
     error models of that operator.
 
 
@@ -41,10 +41,10 @@ def create_module_to_generator_mapper(
     Returns
     ----
     A function that takes in input the name of a Module (str) and the ``nn.Module`` itself and
-    returns the an instance of a `FaultGenerator` that generate the faults according 
+    returns the an instance of a `FaultGenerator` that generate the faults according
     to the correct error model.
 
-    It is advisable, if possible, to not generate a new `FaultGenerator` each time the returned function is invoked, but 
+    It is advisable, if possible, to not generate a new `FaultGenerator` each time the returned function is invoked, but
     instead it is better to instatiate the `FaultGenerator` in the closure of the function generated and
     return a reference to the pre-constructed object.
 
@@ -79,15 +79,15 @@ def create_module_to_generator_mapper(
         )
     # mapping between nn.Module subtypes and the name of the error models
     # convolution has multiple error models, the one chosen is passed as argument
-    module_to_err_model_mapping : dict[type, str] = {
+    module_to_err_model_mapping: dict[type, str] = {
         nn.Conv2d: conv_strategy,
-        nn.MaxPool2d: 'maxpool',
-        nn.AvgPool2d: 'avgpool',
-        nn.BatchNorm2d: 'batchnorm',
-        nn.ReLU: 'relu',
-        nn.Sigmoid: 'sigmoid',
-        nn.Tanh: 'tanh',
-        nn.ELU: 'elu'
+        nn.MaxPool2d: "maxpool",
+        nn.AvgPool2d: "avgpool",
+        nn.BatchNorm2d: "batchnorm",
+        nn.ReLU: "relu",
+        nn.Sigmoid: "sigmoid",
+        nn.Tanh: "tanh",
+        nn.ELU: "elu",
     }
 
     def _mapper(module_name: str, module: nn.Module):

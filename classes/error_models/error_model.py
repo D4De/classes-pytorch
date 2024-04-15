@@ -83,8 +83,10 @@ class ErrorModel:
         else:
             raise TypeError("Only str argumetns are supported for __contains__")
 
-
-    def spatial_patterns_generator(self, generator_mapping : Mapping[str, PatternGenerator]=get_default_generators()):
+    def spatial_patterns_generator(
+        self,
+        generator_mapping: Mapping[str, PatternGenerator] = get_default_generators(),
+    ):
         """
         Creates a Generator that enumerates all the combinations of ErrorModelEntry and spatial parameters
         present in the error model.

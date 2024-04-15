@@ -24,6 +24,7 @@ def create_fill_generator(fill_value) -> Callable:
 
     return fill_generator
 
+
 def flip_mask_generator(
     val_range: np.ndarray, size: Tuple[int], dtype=None
 ) -> np.ndarray:
@@ -57,6 +58,7 @@ def flip_mask_generator(
     shifts = np.random.randint(0, n_bits, size=size).astype(uint_type)
     uint_mask = 1 << shifts
     return uint_mask.view(float_type)
+
 
 def in_range_value_generator(
     val_range: np.ndarray, size: Tuple[int], dtype=None

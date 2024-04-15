@@ -120,7 +120,9 @@ class ValueClassDistribution(ABC):
         """
         all_keys = set(v.display_name for v in ValueClass)
         if "random" in json_dict:
-            value_classes = list(map(ValueClass.from_display_name, json_dict["values"].keys()))
+            value_classes = list(
+                map(ValueClass.from_display_name, json_dict["values"].keys())
+            )
             freqs = list(json_dict["values"].values())
             return RandomDistribution(value_classes, freqs)
         # Filters out the non value_classes keys in the json, such as "count" and "frequency"

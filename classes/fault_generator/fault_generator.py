@@ -85,7 +85,9 @@ class FaultGenerator:
                 )
 
         corrupted_value_mask[corrupted_value_mask != 0] = domain_class_mask
-        return Fault(corrupted_value_mask, corrupted_values, spatial_pattern_name, sp_parameters)
+        return Fault(
+            corrupted_value_mask, corrupted_values, spatial_pattern_name, sp_parameters
+        )
 
     def generate_batched_mask(
         self,
@@ -116,6 +118,3 @@ class FaultGenerator:
         values = np.concatenate(values, axis=0)
 
         return FaultBatch(masks, values, values_index, sp_classes, sp_parameters)
-
-
-

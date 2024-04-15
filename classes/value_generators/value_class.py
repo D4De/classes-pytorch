@@ -6,7 +6,7 @@ from classes.value_generators.value_generators import (
     create_fill_generator,
     in_range_value_generator,
     out_of_range_value_generator,
-    flip_mask_generator
+    flip_mask_generator,
 )
 
 
@@ -56,9 +56,9 @@ class ValueClass(Enum):
         dtype=None,
     ):
         return self.generator_function(value_range, output_shape, dtype)
-    
+
     @staticmethod
-    def from_display_name(display_name : str):
+    def from_display_name(display_name: str):
         """
         Get the ``ValueClass`` corresponding to a display name
 

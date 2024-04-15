@@ -25,7 +25,6 @@ def rectangles_generator(
     rectangle_width = min(params["rectangle_width"], channel_width)
     rectangle_height = min(params["rectangle_height"], channel_height)
 
-
     random_top = np.random.randint(0, max(channel_height - rectangle_height, 1))
     random_left = np.random.randint(0, max(channel_width - rectangle_width, 1))
 

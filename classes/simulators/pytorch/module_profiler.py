@@ -22,7 +22,7 @@ def module_shape_profiler(
     input_data: Optional[torch.Tensor] = None,
     input_shape: Optional[Sequence[int]] = None,
     device=DEFAULT_DEVICE,
-    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True
+    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True,
 ) -> Mapping[str, List[int]]:
     """
     Executes a forward pass in a Module to determine the shape of all
@@ -40,7 +40,7 @@ def module_shape_profiler(
                 will be moved to device as a side-effect of this function.
     * `module_filter_fn : Callable[[str, nn.Module], bool]`. A function that takes in input the module name and the module itself and returns a boolean that says
                 whether the profiling should happen in that layer. If not specified, the output shape of all modules will be profiled.
-                
+
     Returns
     ---
     A dictionary that has the submodules fully qualified names as keys and their corresponding output shapes
@@ -66,15 +66,16 @@ def module_shape_profiler(
 
         return _shape_profile_hook
 
-
     if input_data and not input_shape:
         input_shape = input_data.shape
         input_data = input_data.to(device)
     elif not input_data and input_shape:
         input_data = torch.normal(0.0, 1.0, input_shape).to(device)
     else:
-        raise ValueError("One and only one between input_data and input_shape must be specified.")
-    
+        raise ValueError(
+            "One and only one between input_data and input_shape must be specified."
+        )
+
     module.to(device)
 
     module.eval()
@@ -136,7 +137,7 @@ def module_range_profiler(
                 handle = module.register_forward_hook(_make_range_profile_hook(name))
                 hook_handles.append(handle)
         with torch.no_grad():
-            for data in tqdm(dataloader, desc='Range Profiling'):
+            for data in tqdm(dataloader, desc="Range Profiling"):
                 network_input = network_input_fn(data)
                 network_input = network_input.to(device)
                 output = network(network_input)
@@ -155,8 +156,10 @@ def module_range_profiler(
     return result
 
 
-def save_range_profile_to_json(file_path : str, range_profile : Mapping[str, np.ndarray], indent=2):
-    os.makedirs(os.path.dirname(file_path) or '.', exist_ok=True)
-    range_dict =  {mod : rng.tolist() for mod, rng in range_profile.items()}
-    with open(file_path, 'w') as f:
+def save_range_profile_to_json(
+    file_path: str, range_profile: Mapping[str, np.ndarray], indent=2
+):
+    os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
+    range_dict = {mod: rng.tolist() for mod, rng in range_profile.items()}
+    with open(file_path, "w") as f:
         json.dump(range_dict, f, indent=indent)
