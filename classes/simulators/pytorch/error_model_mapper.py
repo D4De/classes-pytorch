@@ -3,7 +3,7 @@ import torch.nn as nn
 
 import os
 
-from typing import Callable, Dict, Literal, Optional
+from typing import Callable, Dict, Literal, Mapping, Optional
 
 
 from classes.error_models.error_model import ErrorModel
@@ -17,7 +17,7 @@ ModuleToFaultGeneratorMapper = Callable[[str, nn.Module], Optional[FaultGenerato
 def create_module_to_generator_mapper(
     model_folder_path="error_models/models",
     conv_strategy: Literal["conv_gemm", "conv_fft", "conv_win"] = "conv_gemm",
-    generator_mapping: Dict[str, PatternGenerator] = get_default_generators(),
+    generator_mapping: Mapping[str, PatternGenerator] = get_default_generators(),
     layout="CHW",
 ) -> ModuleToFaultGeneratorMapper:
     """
@@ -84,10 +84,10 @@ def create_module_to_generator_mapper(
         nn.MaxPool2d: "maxpool",
         nn.AvgPool2d: "avgpool",
         nn.BatchNorm2d: "batchnorm",
-        nn.ReLU: "relu",
-        nn.Sigmoid: "sigmoid",
-        nn.Tanh: "tanh",
-        nn.ELU: "elu",
+        #nn.ReLU: "relu",
+        #nn.Sigmoid: "sigmoid",
+        #nn.Tanh: "tanh",
+        #nn.ELU: "elu",
     }
 
     def _mapper(module_name: str, module: nn.Module):

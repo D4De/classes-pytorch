@@ -11,15 +11,12 @@ from classes.error_models.error_model_entry import ErrorModelEntry
 from classes.fault_generator.fault_generator import FaultGenerator
 from classes.pattern_generators import get_default_generators
 from classes.visualization.mask import plot_mask
+from classes.tests.fault_list_visualizer import test_fault_list_pytorch
 
 # You can change here the mapping with a custom one
 GENERATOR_MAPPING = get_default_generators()
 
-
-def test_error_models(
-    models_path: str,
-    output_path: Optional[str],
-    channel_sizes: Sequence[Tuple[int, int]] = [
+DEFAULT_CH_SIZES = [
         (1, 1),
         (7, 7),
         (16, 16),
@@ -29,7 +26,15 @@ def test_error_models(
         (128, 64),
         (1, 100),
         (100, 1),
-    ],
+    ]
+# default tests
+
+
+
+def test_error_models(
+    models_path: str,
+    output_path: Optional[str],
+    channel_sizes: Sequence[Tuple[int, int]] = DEFAULT_CH_SIZES,
     n_channels: Sequence[int] = [1, 3, 4, 12, 32, 100, 128, 137, 256],
     n_iter=5,
     layout: Literal["CHW", "HWC"] = "CHW",
@@ -129,7 +134,7 @@ def test_fault_generator(
                         show=False,
                         invalidate=True,
                         description=str(sp_params),
-                    )
+                    ) 
             except Exception as e:
 
                 print(f"Failed generation")
@@ -156,8 +161,18 @@ def parse_args():
         """,
     )
 
-    parser.add_argument(
-        "error_model_path",
+    group = parser.add_mutually_exclusive_group()
+
+    group.add_argument(
+        "-f",
+        "--fault-list-path",
+        type=str,
+        help="Path to a .tar pytorch faultlist.",
+    )
+
+    group.add_argument(
+        "-p",
+        "--error-model-path",
         type=str,
         help="Path to a folder of .json error models or to a single .json error model file.",
     )
@@ -165,7 +180,7 @@ def parse_args():
     parser.add_argument(
         "-o",
         "--output-path",
-        required=False,
+        required=True,
         type=str,
         help="Output path for the test report and images. Specifying this enables visualization",
     )
@@ -236,12 +251,19 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    test_error_models(
-        args.error_model_path,
-        output_path=args.output_path,
-        n_iter=args.iterations,
-        layout=args.layout,
-        channel_sizes=args.channel_sizes,
-        n_channels=args.n_channels,
-    )
+    if args.error_model_path:
+        test_error_models(
+            args.error_model_path,
+            output_path=args.output_path,
+            n_iter=args.iterations,
+            layout=args.layout,
+            channel_sizes=args.channel_sizes,
+            n_channels=args.n_channels,
+        )
+    else:
+        test_fault_list_pytorch(
+            args.fault_list_path,
+            output_path=args.output_path,
+            layout=args.layout,
+        )
     print("Test completed successfully")

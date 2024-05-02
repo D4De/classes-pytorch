@@ -2,25 +2,22 @@ from math import sqrt
 import math
 import os
 import json
-from typing import List, Literal, Tuple, Union
+from typing import List, Literal, Optional, Sequence, Tuple, Union
 
 
 from matplotlib.axes import Axes
-import matplotlib.pyplot as plt
 import matplotlib
-import seaborn as sns
+import matplotlib.colors
+import matplotlib.pyplot as plt
+
 import numpy as np
 
-levels = [0, 1, 2]
-labels = [""] + ["clean", "corrupted"]
-colors = ["white", "red"]
-cmap, norm = matplotlib.colors.from_levels_and_colors(levels, colors, extend="neither")
 
 
 def split_two(num: int) -> Tuple[int, int]:
     """
     Given a number [num] of plots returns the optimal arrangment for displaying
-    the subplot in a 2D grid.
+    the subplot in a square 2D grid.
     """
     val = int(math.ceil(sqrt(num)))
     return val, val
@@ -37,7 +34,19 @@ def is_square(apositiveint: int) -> bool:
     return True
 
 
-def axs_generator(axs, scene_dim_x):
+def axs_generator(axs : Union[Axes, np.ndarray], scene_dim_x : int):
+    """
+
+    Args
+    ---
+    * ``axs : Axes | np.ndarray[Axes]``. The axes object or array returned by matplotlib subplots function
+    * ``scene_dim_x : int``. Number of columns of plots in the subplot.
+
+    Returns
+    ---
+    A generator that allows to iterate all the axes independelty from
+    the fact that ``axs`` is a single Axes, or a 1d array of Axes or a 2d array of Axes.
+    """
     # Pick the ax where to draw the channel
     if isinstance(axs, Axes):
         yield axs
@@ -54,12 +63,42 @@ def axs_generator(axs, scene_dim_x):
 def plot_mask(
     mask: np.ndarray,
     layout_type: Literal["CHW", "HWC"],
-    output_path: Union[str, None] = None,
+    output_path: Optional[str] = None,
     save: bool = False,
     show: bool = True,
     invalidate: bool = False,
     description: str = "",
+    labels : Sequence[str] = ["clean", "corrupted"],
+    colors : Sequence[str] = ["white", "red"]
 ):
+    """
+    Plots the corrupted values 3d masks using matplotlib. 
+    The 3d array is decomposed in various 2d heatmap plots where each pixel is colored depending on its class (for example clean/corrupted, or its ValueClass).
+    The plots can be shown in a window a saved to an image.
+
+    Args
+    ---
+    * ``mask : np.ndarray``. A 3d ndarray of integer, each representing the class of the pixel. The classes vary depending on the context for which this function is used.
+    * ``layout_type : "CHW" | "HWC"``. Specify if the tensor is saved with the torch convention (channel first - CHW) or the tensorflow convention (channel last - HWC). Default is CHW.
+    * ``output_path : Optional[str]``. Specify the path where to save the resulting image. If save is ``True`` it must be specified.
+    * ``save : bool``. If ``True`` the image of the generated plots will be saved to ``output_path``
+    * ``show : bool``. If ``True`` the plot will be shown in a matplotlib window.
+    * ``invalidate``. If ``False`` the plot will not be generated if already exist another plot. Defaults to ``False``.
+    * ``description``. The description that will be put as the global title of the image.
+    * ``labels : Sequence[str]``. A list of label names for the legend
+    * ``colors : Sequence``. A list of colors for the various classes.
+
+    NOTE: labels and colors must a length equal to the number of classes in the ``mask``. If there are N classes, mask must contain int values from 0 to N-1.
+    """
+
+    if len(labels) != len(colors):
+        raise ValueError(f'labels and colors must have the same len. len(labels)={len(labels)} len(colors)={len(colors)}')
+    labels = [""] + list(labels)
+    levels = list(range(len(labels)))
+
+    cmap, norm = matplotlib.colors.from_levels_and_colors(levels, colors, extend="neither")
+
+
     feat_map_axis = tuple(
         [i for i, tensor_ax in enumerate(layout_type) if tensor_ax in ["H", "W"]]
     )
@@ -75,10 +114,10 @@ def plot_mask(
     else:
         suptitle = ""
     if not invalidate and output_path and os.path.exists(output_path):
-        print("No")
+        print("Plots already exist.")
         return
 
-    fig, axs = plt.subplots(scene_dim_x, scene_dim_y, figsize=(6, 7))
+    fig, axs = plt.subplots(max(1, scene_dim_x), max(1, scene_dim_y), figsize=(6, 7))
     if len(suptitle) > 0:
         plt.suptitle(suptitle, fontsize=8, wrap=True)
 

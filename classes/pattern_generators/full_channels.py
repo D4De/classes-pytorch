@@ -31,7 +31,7 @@ def full_channels_generator(
             random_int_from_pct_range(num_values_per_channel, *avg_chan_corruption_pct),
             1,
         )
-        positions = np.random.choice(num_corr_positions, num_values_per_channel)
+        positions = np.random.choice(num_values_per_channel, num_corr_positions)
         h_idxs, w_idxs = np.unravel_index(
             positions, (output_shape[h_dim], output_shape[w_dim])
         )

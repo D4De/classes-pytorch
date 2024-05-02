@@ -60,6 +60,7 @@ def module_shape_profiler(
     def _make_shape_profile_hook(name):
         def _shape_profile_hook(module, input, output):
             if isinstance(output, torch.Tensor):
+                print(f'{name}: {output.size()}')
                 shape_index[name] = output.size()
             # Do not modify the output
             return output
@@ -81,11 +82,13 @@ def module_shape_profiler(
     module.eval()
     # Store the handles to remove the hook after the profiling
     hook_handles: List[RemovableHandle] = []
-    try:
+    try:    
         for name, mod in module.named_modules():
             if module_filter_fn(name, mod):
-                with torch.no_grad():
-                    module(input_data)
+                handle = mod.register_forward_hook(_make_shape_profile_hook(name))
+                hook_handles.append(handle)
+        with torch.no_grad():
+            module(input_data)
     finally:
         # Restore the network as it was before (removing hooks applied in this function)
         for handle in hook_handles:
@@ -163,3 +166,37 @@ def save_range_profile_to_json(
     range_dict = {mod: rng.tolist() for mod, rng in range_profile.items()}
     with open(file_path, "w") as f:
         json.dump(range_dict, f, indent=indent)
+
+
+def generate_and_persist_range_profile(
+    file_path: str,
+    network: nn.Module,
+    dataloader: DataLoader,
+    network_input_fn: Callable = itemgetter(0),
+    torch_dtype=torch.float32,
+    np_output_dtype=np.float32,
+    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True,
+    indent=2,
+    device=DEFAULT_DEVICE,
+    exists_ok=True,
+    overwrite=False
+) -> Mapping[str, np.ndarray]:
+    if os.path.exists(file_path) and not overwrite:
+        if not exists_ok:
+            raise FileExistsError(f'Range profile at {file_path} already exists and exists_ok is False.')
+        with open(file_path, 'r') as f:
+            profile_dict = json.load(f)
+            range_profile = {mod: np.array(rng, dtype=np_output_dtype) for mod, rng in profile_dict.items()}
+            return range_profile
+    else:
+        range_profile = module_range_profiler(
+            network,
+            dataloader,
+            network_input_fn,
+            torch_dtype,
+            np_output_dtype,
+            module_filter_fn,
+            device
+        )
+        save_range_profile_to_json(file_path, range_profile, indent)
+        return range_profile

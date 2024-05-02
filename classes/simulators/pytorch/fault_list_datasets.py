@@ -75,6 +75,7 @@ class FaultListFromTarFile(Dataset[PyTorchFault]):
                 member_file.close()
 
     def collate_fn(self, data: Sequence[PyTorchFaultBatch]):
+        print(len(data))
         names, fault_ids, masks, values, sp_classes, sp_parameters = zip(*data)
         sp_classes = [cl[0] for cl in sp_classes]
         sp_parameters = [prm[0] for prm in sp_parameters]

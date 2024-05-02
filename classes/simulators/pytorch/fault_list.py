@@ -5,6 +5,7 @@ import torch.nn as nn
 import tarfile
 import json
 import shutil
+import warnings
 
 from torch.utils.hooks import RemovableHandle
 
@@ -80,6 +81,9 @@ class PyTorchFaultList:
         input_shape: Optional[Sequence[int]] = None,
         input_data: Optional[torch.Tensor] = None,
         module_to_fault_generator_fn: ModuleToFaultGeneratorMapper = create_module_to_generator_mapper(),
+        module_to_range_map : Optional[Mapping[str, np.ndarray]] = None,
+        default_range : np.ndarray = np.array([-30.0, 30.0],dtype=np.float32),
+        value_dtype : type = np.float32,
         batch_axis: Optional[int] = 0,
         device=DEFAULT_DEVICE,
     ) -> None:
@@ -87,6 +91,9 @@ class PyTorchFaultList:
         self.network = network
         self.network.to(device)
         self.module_to_fault_generator_fn = module_to_fault_generator_fn
+        self.module_to_range_map = module_to_range_map
+        self.default_range = default_range
+        self.value_dtype= value_dtype
         self.batch_axis = batch_axis
         if input_data is not None and input_shape is None:
             self.input_shape = input_data.shape
@@ -154,7 +161,7 @@ class PyTorchFaultList:
 
         Raises
         ---
-        ``AttributeError``: If ``module_name`` references an invalid
+        * ``AttributeError``: If ``module_name`` references an invalid
         path to a module or resolves to something that is not an
         ``nn.Module``.
         """
@@ -169,12 +176,21 @@ class PyTorchFaultList:
             output_shape = list(self.modules_output_shapes[module_name])
             if self.batch_axis is not None:
                 output_shape.pop(self.batch_axis)
-            masks, values, values_index, sp_classes, sp_parameters = (
-                fault_generator.generate_batched_mask(output_shape, fault_batch_size)
+            if self.module_to_range_map is not None:
+                operating_range = self.module_to_range_map.get(module_name) 
+                if operating_range is None:
+                    operating_range = self.default_range
+            else:
+                operating_range = self.default_range
+
+            fault_batch = (
+                fault_generator.generate_batched_mask(
+                    output_shape, 
+                    fault_batch_size, 
+                    value_range=operating_range, 
+                    dtype=self.value_dtype)
             )
-            yield module_name, it, FaultBatch(
-                masks, values, values_index, sp_classes, sp_parameters
-            )
+            yield module_name, it, fault_batch
 
     def network_fault_list_generator(
         self, n_faults: int, fault_batch_size: int = 1

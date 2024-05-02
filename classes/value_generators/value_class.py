@@ -75,6 +75,8 @@ class ValueClass(Enum):
         ``KeyError`` if there is no ``ValueClass`` with that display name
         """
         return ValueClass[display_name.upper()]
+    
+    
 
     def __str__(self) -> str:
         return f"value_class_{self.display_name}"

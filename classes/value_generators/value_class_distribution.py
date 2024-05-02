@@ -10,15 +10,22 @@ import numpy as np
 
 
 class ValueClassDistribution(ABC):
+    """
+    Abstract Class that represents models for how the value classes of erroneous values in corrupted tensors 
+    are distributed in a tensor.
+    Every subclass of this Abstract class must implement ``generate_value_classes`` method that generates
+    an array of ``ValueClass`` ids that reflects the distribution.
+    """
     def __init__(self, value_classes: Sequence[ValueClass]) -> None:
         self.value_classes = list(value_classes)
 
     @abstractmethod
     def generate_value_classes(self, output_shape: Sequence[int]) -> np.ndarray:
         """
-        Generates randomly a numpy array of shape ``output_shape`` that following the
-        distribution. Each subclass of ``ValueClassDistribution`` must implement
-        this method.
+        Generates randomly a numpy array of shape ``output_shape``. Each element of the 
+        array contains the id of a ``ValueClass``. The ids are chosen using the
+        distribution. Each subclass of ``ValueClassDistribution`` implements
+        this method accordingly to the distribution they represent.
 
         Args
         ---
@@ -26,9 +33,11 @@ class ValueClassDistribution(ABC):
 
         Returns
         ---
-        A numpy array of shaoe ``output_shape`` of dtype ``uint8``.
-        Each integer of the array represents the numeric id of the dataclass, accordingly
-        to the ids specified in the definition of ``ValueClass`` enum.
+        A numpy array of shape ``output_shape`` of dtype ``uint8``.
+        Each integer of the array represents the id of the dataclass, accordingly
+        to the ids specified in the definition of ``ValueClass`` enum. This array can
+        be used later in the process to generate an array containing the erroneous values correspodning
+        to the ``ValueClass`` they are in``.
         """
         pass
 
@@ -106,7 +115,23 @@ class ValueClassDistribution(ABC):
 
             The probabilities inside the object with key "values" must sum to 100.0
 
-        In every JSON example, <type_1>,<type_2>,... must be the replaced with one of the members of ``ValueClass`` enum.
+        In every JSON example, <type_1>,<type_2>,... must be the replaced with the display name of the members of ``ValueClass`` enum.
+
+        Example:
+        ```
+        {
+            "random": [100.0, 100.0],
+            "values": {
+                "in_range": 0.48441274954435637,
+                "out_of_range": 0.471856059000551,
+                "nan": 0.03941847158055355,
+                "zero": 0.004312719874539058
+            },
+            "count": 186,
+            "frequency": 0.062082777036048066
+        }
+        ```        
+
 
         Args
         ----
@@ -145,8 +170,9 @@ class ValueClassDistribution(ABC):
 
 class SingleTypeDistribution(ValueClassDistribution):
     """
-    A ``ValueClassDistribution`` consisting of a single ``ValueClass``.
-    This class always picks the same ``value_class``.
+    A ``ValueClassDistribution`` consisting of a single ``ValueClass`` that reproduces
+    corrupted tensors where the erroneus values belonged only a single value class.
+    This class always generates values of a single type of ``value_class``.
     """
 
     def __init__(self, value_class: ValueClass) -> None:
@@ -165,6 +191,13 @@ class SingleTypeDistribution(ValueClassDistribution):
 
 
 class DoubleTypeDistribution(ValueClassDistribution):
+    """
+    A ``ValueClassDistribution`` consisting of a two ``ValueClass`` that reproduces
+    corrupted tensors where the erroneus values belonged only two different value classes.
+    This class generates values belonging to one of two value classes weighted
+    with the probability specified in ``pct_ranges``.
+    """
+
     def __init__(
         self,
         value_classes: Sequence[ValueClass],
@@ -202,9 +235,11 @@ class DoubleTypeDistribution(ValueClassDistribution):
 
 class RandomDistribution(ValueClassDistribution):
     """
-    A ``ValueClassDistribution`` that generates only a single value
-    class.
+    A ``ValueClassDistribution`` that has 
+    This class generates values belonging to one of two value classes weighted
+    with the probability specified in ``pct_ranges``.
     """
+
 
     def __init__(
         self, value_classes: Sequence[ValueClass], freq: Sequence[float]

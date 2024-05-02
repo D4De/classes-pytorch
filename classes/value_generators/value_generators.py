@@ -8,7 +8,20 @@ from classes.value_generators.float_utils import (
 )
 
 
-def create_fill_generator(fill_value) -> Callable:
+def create_fill_generator(fill_value) -> Callable: 
+    """
+    Create a generator function compatible ``ValueClass`` that
+    just fills all the values with a constant value.
+
+    Args
+    ---
+    * ``fill_value``: The value used to fill the resulting array from the generator
+    
+    Returns
+    ---
+    A function that takes in input a range, a size of output array and a datatype and return
+    an array, matching the specification for the generator classes.
+    """
     def fill_generator(
         val_range: np.ndarray, size: Tuple[int], dtype=None
     ) -> np.ndarray:
@@ -92,7 +105,7 @@ def out_of_range_value_generator(
     val_range: np.ndarray, size: Tuple[int], dtype=None
 ) -> np.ndarray:
     """
-    Generate a numpy array of floats of the same type of ``val_range`` of size ``size``.
+    Generates a numpy array of floats of the same type of ``val_range`` of size ``size``.
     Each float will be out of the range specified in ``val_range``.
 
     Args
@@ -231,8 +244,8 @@ def out_of_range_value_generator(
         )
         # Then choose, for the values between
         sign_probs = (
-            np.array([floats_with_opposite_sign, floats_a_to_zero], dtype=uint_type)
-            / smaller_than_a
+            np.array([floats_with_opposite_sign, floats_a_to_zero], dtype=np.double)
+            / (np.double(floats_with_opposite_sign) + np.double(floats_a_to_zero))
         )
         sign_choices = np.random.choice([False, True], size, replace=True, p=sign_probs)
         floats_with_opposite_sign_choices = ~range_sides_choices & ~sign_choices
@@ -240,8 +253,8 @@ def out_of_range_value_generator(
         floats_more_than_b_choices = range_sides_choices
 
         floats_with_opposite_sign_values = np.random.randint(
-            most_negative_float_ieee754,
             negative_zero_ieee754,
+            most_negative_float_ieee754,
             size=(floats_with_opposite_sign_choices.sum(),),
             dtype=uint_type,
         ).view(float_type)
