@@ -8,8 +8,6 @@ from torch.utils.data import Dataset, IterableDataset
 
 import tarfile
 import os
-import json
-import shutil
 import numpy as np
 
 from classes.simulators.pytorch.pytorch_fault import PyTorchFault, PyTorchFaultBatch

@@ -1,7 +1,8 @@
-from typing import Callable, List, Mapping, Optional, Sequence
+from typing import Callable, List, Mapping, Optional, Sequence, Tuple
 
 import torch
 import torch.nn as nn
+import torch.autograd.profiler as profiler
 from torch.utils.hooks import RemovableHandle
 from torch.utils.data import DataLoader
 
@@ -12,7 +13,9 @@ from tqdm import tqdm
 
 import numpy as np
 import json
+import csv
 import os
+import gc
 
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -23,9 +26,10 @@ def module_shape_profiler(
     input_shape: Optional[Sequence[int]] = None,
     device=DEFAULT_DEVICE,
     module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True,
+    profile_input_shapes = False
 ) -> Mapping[str, List[int]]:
     """
-    Executes a forward pass in a Module to determine the shape of all
+    Executes a forward pass in a Module to determine the input or output shapes of all
     the children modules at every nesting level.
 
     The function takes in input the module and alternatively one
@@ -40,10 +44,10 @@ def module_shape_profiler(
                 will be moved to device as a side-effect of this function.
     * `module_filter_fn : Callable[[str, nn.Module], bool]`. A function that takes in input the module name and the module itself and returns a boolean that says
                 whether the profiling should happen in that layer. If not specified, the output shape of all modules will be profiled.
-
+    * `profile_input_shapes : boolean`. If False the shape profiled will be output shapes. If True, the function profiles modules input shapes. Defaults to False.
     Returns
     ---
-    A dictionary that has the submodules fully qualified names as keys and their corresponding output shapes
+    A dictionary that has the submodules fully qualified names as keys and their corresponding input or output shapes
     as the corresponding values.
 
     Raises
@@ -59,18 +63,21 @@ def module_shape_profiler(
     # * does not modify the output (returning it as given)
     def _make_shape_profile_hook(name):
         def _shape_profile_hook(module, input, output):
-            if isinstance(output, torch.Tensor):
-                print(f'{name}: {output.size()}')
-                shape_index[name] = output.size()
+            if profile_input_shapes:
+                if isinstance(input[0], torch.Tensor):
+                    shape_index[name] = input[0].size()
+            else:
+                if isinstance(output, torch.Tensor):
+                    shape_index[name] = output.size()
             # Do not modify the output
             return output
 
         return _shape_profile_hook
 
-    if input_data and not input_shape:
+    if input_data is not None and input_shape is None:
         input_shape = input_data.shape
         input_data = input_data.to(device)
-    elif not input_data and input_shape:
+    elif input_data is None and input_shape is not None:
         input_data = torch.normal(0.0, 1.0, input_shape).to(device)
     else:
         raise ValueError(
@@ -200,3 +207,115 @@ def generate_and_persist_range_profile(
         )
         save_range_profile_to_json(file_path, range_profile, indent)
         return range_profile
+    
+
+def profile_module_execution_time(
+    network : nn.Module,
+    input_data : Optional[torch.Tensor] = None,
+    input_shape : Optional[Sequence[int]] = None,
+    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True,
+    warmup_runs : int = 10,
+    profile_runs : int = 100,
+    device=DEFAULT_DEVICE
+
+) -> Mapping[str, Tuple[float, float]]:
+    
+    
+    network.to(device)
+    if input_data is None and input_shape is None or (input_data is not None and input_shape is not None):
+        raise ValueError('One and only one argument between input_data and input_shape must be specified. here is the entier bee movie script')
+    
+    if input_data is None and input_shape is not None:
+        input_data = torch.normal(0.0, 1.0, size=input_shape)
+    elif input_data is not None and input_shape is None:
+        input_shape = input_data.size()
+    else:
+        raise ValueError('Something really strange happened. Execution should not end up here.')
+    
+    input_data = input_data.to(device)
+    # Get input shapes for reproducing inputs for the module
+    input_shapes = module_shape_profiler(
+        network, 
+        input_data=input_data, 
+        device=device, 
+        module_filter_fn=module_filter_fn,
+        profile_input_shapes=True)
+    
+    runtimes_ms = {}
+
+    modules_to_profile = [(mod_name, module) for mod_name, module in network.named_modules() if module_filter_fn(mod_name, module)]
+    for mod_name, module in tqdm(modules_to_profile, desc='Time Profiling'):
+        
+        if module_filter_fn(mod_name, module): 
+            if mod_name not in input_shapes:
+                print(f'WARNING: {mod_name} shape not found in shape profile index. Skipping it.')
+            else:
+                module_input_shape = input_shapes[mod_name]
+                # Warmup Runs
+                for _ in range(warmup_runs): 
+                    module_input = torch.normal(0.0, 1.0, size=module_input_shape).to(device)
+                    module(module_input)
+                # Effective Runs
+                times_ms = np.zeros(profile_runs)
+                for i in range(profile_runs):
+                    module_input = torch.normal(0.0, 1.0, size=module_input_shape).to(device)
+
+                    torch.cuda.empty_cache()  # Clear CUDA cache
+                    gc.collect()  # Collect garbage to prevent interference
+                    torch.cuda.synchronize()  # Synchronize to ensure starting on a clean slate
+
+                    start_event = torch.cuda.Event(enable_timing=True)
+                    end_event = torch.cuda.Event(enable_timing=True)
+                    start_event.record()
+                    module(module_input)
+                    end_event.record()
+                    torch.cuda.synchronize()
+                    
+                    times_ms[i] = start_event.elapsed_time(end_event)
+                runtimes_ms[mod_name] = (times_ms.mean().item(), times_ms.std().item())
+    if len(runtimes_ms) == 0:
+        raise RuntimeError('No modules profiled')
+    return runtimes_ms
+
+def generate_and_persist_execution_time_profile(
+    file_path: str,
+    module : nn.Module,
+    input_data : Optional[torch.Tensor] = None,
+    input_shape : Optional[Sequence[int]] = None,
+    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True,
+    warmup_runs : int = 10,
+    profile_runs : int = 100,
+    device=DEFAULT_DEVICE,
+    exists_ok=True,
+    overwrite=False
+) -> Mapping[str, Tuple[float, float]]:
+    if os.path.exists(file_path) and not overwrite:
+        if not exists_ok:
+            raise FileExistsError(f'Range profile at {file_path} already exists and exists_ok is False.')
+        with open(file_path, 'r') as f:
+            reader = csv.reader(f)
+            reader_iter = iter(reader)
+            headers = next(reader_iter)
+            result = {}
+            for row in reader_iter:
+                mod_name, time, std = row
+                result[mod_name] = (time, std)
+            return result
+    else:
+        profile = profile_module_execution_time(
+            module,
+            input_data=input_data,
+            input_shape=input_shape,
+            warmup_runs=warmup_runs,
+            profile_runs=profile_runs,
+            module_filter_fn=module_filter_fn,
+            device=device
+        )
+        with open(file_path, 'w') as f:
+            writer = csv.writer(f)
+            writer.writerow(['module_name', 'avg_time_ms', 'std_dev_ms'])
+            for mod, (avg_time_ms, std_dev_ms) in profile.items():
+                writer.writerow([mod, avg_time_ms, std_dev_ms])
+        return profile
+    
+
