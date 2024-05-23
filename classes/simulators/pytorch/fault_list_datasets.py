@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple, Union
 
 from classes.simulators.pytorch.fault_list import PyTorchFaultList, PyTorchFaultListInfo
 import torch
@@ -26,15 +26,22 @@ class FaultListFromTarFile(Dataset[PyTorchFault]):
 
         self.n_faults = self.info.n_faults_per_module
 
-    def __getitem__(self, index: int) -> PyTorchFault:
+    def __getitem__(self, index: Union[int, Tuple[str, int]]) -> PyTorchFault:
 
-        if self.module is None:
-            selected_module_idx = index // self.info.n_faults_per_module
-            selected_module_name = self.info.injectable_layers[selected_module_idx]
-            module_idx = index % self.info.n_faults_per_module
+        if isinstance(index, tuple):
+            selected_module_name, module_idx = index
+            if selected_module_name not in self.info.injectable_layers:
+                raise IndexError(f'{selected_module_name} is not an injectable layer of the fault list.')
+            
         else:
-            selected_module_name = self.module
-            module_idx = index
+            index : int = index
+            if self.module is None:
+                selected_module_idx = index // self.info.n_faults_per_module
+                selected_module_name = self.info.injectable_layers[selected_module_idx]
+                module_idx = index % self.info.n_faults_per_module
+            else:
+                selected_module_name = self.module
+                module_idx = index
 
         file_idx = module_idx // self.info.fault_batch_size
         batch_idx = module_idx % self.info.fault_batch_size
@@ -63,7 +70,7 @@ class FaultListFromTarFile(Dataset[PyTorchFault]):
                 sp_param = fault_list_file["sp_parameters"][batch_idx]
                 return PyTorchFault(
                     selected_module_name,
-                    index,
+                    module_idx,
                     torch_mask,
                     torch_values,
                     sp_class,
@@ -71,6 +78,7 @@ class FaultListFromTarFile(Dataset[PyTorchFault]):
                 )
             finally:
                 member_file.close()
+
 
     def collate_fn(self, data: Sequence[PyTorchFaultBatch]):
         print(len(data))

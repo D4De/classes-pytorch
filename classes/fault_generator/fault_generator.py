@@ -13,7 +13,14 @@ from classes.value_generators.value_class import ValueClass
 
 @dataclass
 class FaultGenerator:
+    """
+    Generators of CLASSES Errors
+    TODO: Rename this to ErrorGenerator
+    """
     error_model: ErrorModel
+    """
+    Error model object used for generating the errors.
+    """
     generator_mapping: Mapping[str, PatternGenerator] = field(
         default_factory=get_default_generators
     )
@@ -37,7 +44,20 @@ class FaultGenerator:
         output_shape: Sequence[int],
         value_range=np.array([-30.0, 30.0], dtype=np.float32),
         dtype=None,
-    ):
+    ) -> Fault:
+        """
+        Generate a single Fault object based on the configured error models.
+
+        Args
+        ---
+        * ``output_shape : Sequence[int]``. The shape of the target tensor to corrupt with format specified in the layout field (no batch size).
+        * ``value_range : np.ndarray (1d, len = 2)``. The operating range of the layer. Used for determining the threshold for which the values are in range or out.
+        * ``dtype``. The data type of the target tensor. If None it is derived from the dtype of value_range
+
+        Returns
+        ---
+        A generated Fault object
+        """
         # Data Type is inferred from value range if not specified
         if dtype is None:
             dtype = value_range.dtype
@@ -95,7 +115,7 @@ class FaultGenerator:
         batch_size: int,
         value_range=np.array([-30.0, 30.0], dtype=np.float32),
         dtype=None,
-    ):
+    ) -> FaultBatch:
         masks = []
         values = []
         sp_classes = []

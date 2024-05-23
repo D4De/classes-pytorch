@@ -33,7 +33,7 @@ def test_fault_list_pytorch(
         fault_dataloader = DataLoader(
             fault_list_dataset,
             batch_size=None,
-            num_workers=8,
+            num_workers=2,
             #collate_fn=fault_list_dataset.collate_fn,
             pin_memory=True,
         )
