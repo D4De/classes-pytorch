@@ -28,9 +28,20 @@ DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 @dataclass
-class PyTorchFaultListInfo:
+class PyTorchFaultListMetadata:
+    """
+    Contains the metadata of a Fault list generated for a PyTorch model.
+    """
+
     input_shape: Sequence[int]
+    """
+    The input shape of the PyTorch model    
+    """
+
     batch_dimension: Optional[int]
+    """
+    The dimension of the batch.
+    """
     modules_output_shapes: Mapping[str, Sequence[int]]
     n_faults_per_module: int
     fault_batch_size: int
@@ -75,6 +86,9 @@ class PyTorchFaultListInfo:
 
 
 class PyTorchFaultList:
+    """
+    A PyTorch fault list 
+    """
     def __init__(
         self,
         network: nn.Module,
@@ -300,7 +314,7 @@ class PyTorchFaultList:
             if show_progress:
                 pbar = tqdm(total=n_iters)
             # Create info object and be store it as the fault list descriptor
-            info = PyTorchFaultListInfo(
+            info = PyTorchFaultListMetadata(
                 input_shape=list(self.input_shape),
                 batch_dimension=self.batch_axis,
                 modules_output_shapes=self.modules_output_shapes,

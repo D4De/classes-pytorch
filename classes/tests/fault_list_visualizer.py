@@ -7,7 +7,7 @@ from tqdm import tqdm
 import numpy as np
 
 from classes.pattern_generators import get_default_generators
-from classes.simulators.pytorch.fault_list import PyTorchFaultListInfo
+from classes.simulators.pytorch.fault_list import PyTorchFaultListMetadata
 from classes.simulators.pytorch.fault_list_datasets import FaultListFromTarFile
 from classes.simulators.pytorch.pytorch_fault import PyTorchFault
 from classes.value_generators.value_class import ValueClass
@@ -23,7 +23,7 @@ def test_fault_list_pytorch(
     layout: Literal["CHW", "HWC"] = "CHW", 
 ):
     
-    fault_list_info = PyTorchFaultListInfo.load_fault_list_info(fault_list_path)
+    fault_list_info = PyTorchFaultListMetadata.load_fault_list_info(fault_list_path)
 
     image_output_folder_path = os.path.join(output_path, "images")
     os.makedirs(os.path.join(output_path, "images"), exist_ok=True)

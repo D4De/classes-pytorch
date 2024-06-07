@@ -7,7 +7,7 @@ import numpy as np
 @dataclass
 class Fault:
     """
-    Characterizes a single Fault, independetly from the front-end deep learning framework.
+    Characterizes a single Fault, independetly from the front-end deep learning framework used for the simulations.
     """
 
     corrupted_value_mask: np.ndarray
@@ -37,6 +37,10 @@ class Fault:
 
 @dataclass
 class FaultBatch:
+    """
+    Characterizes a batch of multiple Faults, independetly from the front-end deep learning framework used for the simulations.
+    """
+
     corrupted_value_mask: np.ndarray
     corrupted_values: np.ndarray
     corrupted_values_index: np.ndarray
