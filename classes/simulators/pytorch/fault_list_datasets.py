@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple, Union
 
-from classes.simulators.pytorch.fault_list import PyTorchFaultList, PyTorchFaultListInfo
+from classes.simulators.pytorch.fault_list import PyTorchFaultList, PyTorchFaultListMetadata
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, IterableDataset
@@ -22,7 +22,7 @@ class FaultListFromTarFile(Dataset[PyTorchFault]):
         self.fault_list_info = None
         self.tmp_path = None
 
-        self.info = PyTorchFaultListInfo.load_fault_list_info(self.fault_list_path)
+        self.info = PyTorchFaultListMetadata.load_fault_list_info(self.fault_list_path)
 
         self.n_faults = self.info.n_faults_per_module
 
