@@ -13,6 +13,35 @@ import numpy as np
 from classes.simulators.pytorch.pytorch_fault import PyTorchFault, PyTorchFaultBatch
 
 
+def fault_collate_fn(data: Sequence[PyTorchFaultBatch]):
+    names, fault_ids, masks, values, sp_classes, sp_parameters = zip(*data)
+    sp_classes = [cl[0] for cl in sp_classes]
+    sp_parameters = [prm[0] for prm in sp_parameters]
+
+    torch_values_idxs = torch.LongTensor(
+        [value_tensor.size() for value_tensor in values]
+    )
+
+    batch_masks = torch.concat(masks, dim=0)
+    batch_values = torch.concat(values)
+
+    batch_values_idxs = torch.LongTensor(
+        torch.zeros(len(masks) + 1).long()
+    )  # sono veramente long
+    batch_values_idxs[1:] = torch.cumsum(torch_values_idxs, dim=0)
+
+    return PyTorchFaultBatch(
+        names,
+        fault_ids,
+        batch_masks,
+        batch_values,
+        batch_values_idxs,
+        sp_classes,
+        sp_parameters,
+    )
+
+
+
 class FaultListFromTarFile(Dataset[PyTorchFault]):
     def __init__(self, fault_list_path: str, module: Optional[str] = None) -> None:
         super().__init__()
@@ -81,52 +110,42 @@ class FaultListFromTarFile(Dataset[PyTorchFault]):
 
 
     def collate_fn(self, data: Sequence[PyTorchFaultBatch]):
-        print(len(data))
-        names, fault_ids, masks, values, sp_classes, sp_parameters = zip(*data)
-        sp_classes = [cl[0] for cl in sp_classes]
-        sp_parameters = [prm[0] for prm in sp_parameters]
-
-        torch_values_idxs = torch.LongTensor(
-            [value_tensor.size() for value_tensor in values]
-        )
-
-        batch_masks = torch.concat(masks, dim=0)
-        batch_values = torch.concat(values)
-
-        batch_values_idxs = torch.LongTensor(
-            torch.zeros(len(masks) + 1).long()
-        )  # sono veramente long
-        batch_values_idxs[1:] = torch.cumsum(torch_values_idxs, dim=0)
-
-        return PyTorchFaultBatch(
-            names,
-            fault_ids,
-            batch_masks,
-            batch_values,
-            batch_values_idxs,
-            sp_classes,
-            sp_parameters,
-        )
+        return fault_collate_fn(data)
 
     def __len__(self) -> int:
         return self.n_faults
 
 
-class FaultListFromGenerator(IterableDataset):
+class PyTorchLazyFaultList(IterableDataset):
     def __init__(
         self,
         fault_list_generator: PyTorchFaultList,
         module: str,
         n_faults: int,
-        batch_size: int,
     ) -> None:
         super().__init__()
         self.fault_list_generator = fault_list_generator
         self.module = module
         self.n_faults = n_faults
-        self.batch_size = batch_size
+
 
     def __iter__(self):
-        return self.fault_list_generator.module_fault_list_generator(
-            self.module, self.n_faults, self.batch_size
-        )
+
+        def convert_to_tensor(generated_fault : Tuple[str, int, PyTorchFaultBatch]):
+            module_name, fault_id, fault = generated_fault
+
+            return PyTorchFault(
+                module_name,
+                fault_id,
+                torch.from_numpy(fault.corrupted_value_mask[0]),
+                torch.from_numpy(fault.corrupted_values[0]),
+                fault.spatial_pattern_names[0],
+                fault.sp_parameters[0]
+            )
+
+        return map(convert_to_tensor, self.fault_list_generator.module_fault_list_generator(
+                    self.module, self.n_faults, 1
+        ))
+    
+    def collate_fn(self, data: Sequence[PyTorchFaultBatch]):
+        return fault_collate_fn(data)
