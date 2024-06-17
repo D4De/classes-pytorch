@@ -15,20 +15,18 @@ from classes.simulators.pytorch.pytorch_fault import PyTorchFault, PyTorchFaultB
 
 def fault_collate_fn(data: Sequence[PyTorchFaultBatch]):
     names, fault_ids, masks, values, sp_classes, sp_parameters = zip(*data)
-    sp_classes = [cl[0] for cl in sp_classes]
-    sp_parameters = [prm[0] for prm in sp_parameters]
 
     torch_values_idxs = torch.LongTensor(
         [value_tensor.size() for value_tensor in values]
     )
 
-    batch_masks = torch.concat(masks, dim=0)
+    batch_masks = torch.stack(masks)
     batch_values = torch.concat(values)
 
     batch_values_idxs = torch.LongTensor(
         torch.zeros(len(masks) + 1).long()
     )  # sono veramente long
-    batch_values_idxs[1:] = torch.cumsum(torch_values_idxs, dim=0)
+    batch_values_idxs[1:] = torch.cumsum(torch_values_idxs.squeeze(), dim=0)
 
     return PyTorchFaultBatch(
         names,
@@ -116,7 +114,7 @@ class FaultListFromTarFile(Dataset[PyTorchFault]):
         return self.n_faults
 
 
-class PyTorchLazyFaultList(IterableDataset):
+class PyTorchLazyFaultList(IterableDataset[PyTorchFault]):
     def __init__(
         self,
         fault_list_generator: PyTorchFaultList,
@@ -138,7 +136,7 @@ class PyTorchLazyFaultList(IterableDataset):
                 module_name,
                 fault_id,
                 torch.from_numpy(fault.corrupted_value_mask[0]),
-                torch.from_numpy(fault.corrupted_values[0]),
+                torch.from_numpy(fault.corrupted_values),
                 fault.spatial_pattern_names[0],
                 fault.sp_parameters[0]
             )
