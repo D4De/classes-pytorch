@@ -8,7 +8,8 @@ from contextlib import contextmanager
 
 def create_simulator_hook(pytorch_fault: PyTorchFault):
     """
-    Creates a pytorch forward hook that can be attached to
+    Creates a pytorch forward hook that can be attached to a module.
+    This hook will inject the ``pytorch_fault`` specified
     """
 
     def _error_simulator_hook(module, input, output):

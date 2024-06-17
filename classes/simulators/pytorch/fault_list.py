@@ -30,7 +30,9 @@ DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 @dataclass
 class PyTorchFaultListMetadata:
     """
-    Contains the metadata of a Fault list generated for a PyTorch model.
+    Contains the metadata of a Fault list generated for a PyTorch model. Allows to load the metadata
+    of the persisted fault list without unpacking and loading the entire faultlist.
+    
     """
 
     input_shape: Sequence[int]
@@ -49,6 +51,18 @@ class PyTorchFaultListMetadata:
 
     @classmethod
     def load_fault_list_info(cls, fault_list_path):
+        '''
+        Allows to load the metadata
+        of the persisted fault list without unpacking and loading the entire faultlist.
+
+        Args
+        ---
+        * ``fault_list_path : str``: Path to the .tar containing the fault list files
+
+        Returns
+        ---
+        A ``PyTorchFaultListMetadata`` object containing the metadata of the fault list.
+        '''
         with tarfile.TarFile(fault_list_path, "r") as tarf:
             member_file = tarf.extractfile("fault_list.json")
             if not member_file:
