@@ -48,3 +48,8 @@ import classes_core
 
 path_to_my_new_error_models = classes_core.new_error_model_path
 ```
+
+
+### CuPY Installation
+
+Install Cupy Following the [installatio guide](https://docs.cupy.dev/en/stable/install.html).
