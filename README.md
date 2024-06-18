@@ -1,4 +1,4 @@
-# Classes
+# Classes for PyTorch
 CLASSES (Cross-Layer AnalysiS framework for Soft-Errors effectS in CNNs), a novel cross-layer framework for an early, accurate and fast reliability analysis of CNNs accelerated onto GPUs when affected by SEUs.
 A theoretical description of the implemented framework can be found in:
 C. Bolchini, L. Cassano, A. Miele and A. Toschi, "Fast and Accurate Error Simulation for CNNs Against Soft Errors," in IEEE Transactions on Computers, 2022, doi: 10.1109/TC.2022.3184274. <br>
@@ -16,15 +16,6 @@ If you use Classes in your research, we would appreciate a citation to:
 >  doi={10.1109/TC.2022.3184274}<br>
 >}
 
-## Table of Contents
-
-1. [Copyright & License](#copyright--license)
-2. [Dependencies](#dependencies)
-3. [Installation](#installation)
-4. [Usage](#usage)
-    1. [TensorFlow2 - As a K function](#as-a-k-function)
-    2. [TensorFlow2 - As a layer](#as-a-layer)
-
 ## Copyright & License
 
 Copyright (C) 2024 Politecnico di Milano.
@@ -36,6 +27,9 @@ This framework is distributed in the hope that it will be useful, but WITHOUT AN
 Neither the name of Politecnico di Milano nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 ## Installation 
+
+NOTE: This newer version of CLASSES supports only PyTorch (for now). The older version of CLASSES supports only Tensorflow2/Least is available ![here](https://github.com/D4De/classes)
+
 1. Create a virtual environment and activate it
 ```
 python -m venv .venv
