@@ -1,7 +1,9 @@
 from dataclasses import dataclass, astuple
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 import torch
+
+from classes.fault_generator.fault import Fault, FaultBatch
 
 
 @dataclass
@@ -16,6 +18,19 @@ class PyTorchFault:
     def __iter__(self):
         # Enable tuple unpacking
         return iter(astuple(self))
+    
+
+    @classmethod
+    def from_fault(cls, fault : Fault, module_name : str = '', fault_id = 0):
+
+        return cls(
+            module_name,
+            fault_id,
+            torch.from_numpy(fault.corrupted_value_mask),
+            torch.from_numpy(fault.corrupted_values),
+            fault.spatial_pattern_name,
+            fault.sp_parameters
+        )
 
     def to(self, device=None, dtype=None, non_blocking=False, copy=False):
         """
@@ -43,7 +58,22 @@ class PyTorchFaultBatch:
     def __iter__(self):
         # Enable tuple unpacking
         return iter(astuple(self))
-
+    
+    @classmethod
+    def from_fault_batch(cls, fault_batch : FaultBatch, module_name : str = '', fault_indexes: Optional[List[int]] = None):
+        if fault_indexes is None:
+            fault_indexes = list(range(len(fault_batch)))
+        
+        return cls(
+            [module_name for i in range(len(fault_batch))],
+            fault_indexes,
+            torch.from_numpy(fault_batch.corrupted_value_mask),
+            torch.from_numpy(fault_batch.corrupted_values),
+            torch.from_numpy(fault_batch.corrupted_values_index).long(),
+            fault_batch.spatial_pattern_names,
+            fault_batch.sp_parameters
+        )
+        
     def batch_size(self) -> int:
         return self.corrupted_value_mask.size(0)
 

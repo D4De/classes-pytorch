@@ -35,7 +35,7 @@ def create_module_to_generator_mapper(
     * ``conv_strategy :  Literal["conv_gemm", "conv_fft", "conv_win"]``. The convolution strategy to choose for the ``nn.Conv2d`` layers.
         Each convolution strategy has its own different error models
     *`` generator_mapping : Dict[str, PatternGenerator]``: A dictionary that maps the names of the spatial classes with their genetor functions.
-        The default generator is retrieved calling the `classes.pattern_generators.get_default_generators`
+        If not specified, the default generator returned by the function `classes.pattern_generators.get_default_generators()` is used.
     * ``layout : Literal["CHW", "HWC"]. The axis ordering used for generating the faults. "CHW" is the default one for pytorch.
 
     Returns
@@ -44,7 +44,7 @@ def create_module_to_generator_mapper(
     returns the an instance of a `FaultGenerator` that generate the faults according
     to the correct error model.
 
-    It is advisable, if possible, to not generate a new `FaultGenerator` each time the returned function is invoked, but
+    When specifying a custom fault_generator is advisable, if possible, to not generate a new `FaultGenerator` each time the returned function is invoked, but
     instead it is better to instatiate the `FaultGenerator` in the closure of the function generated and
     return a reference to the pre-constructed object.
 

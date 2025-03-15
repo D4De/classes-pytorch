@@ -35,6 +35,18 @@ def module_shape_profiler(
     The function takes in input the module and alternatively one
     of `input_data` and `input_shape`. And returns a dictionary containing all the shapes of submodules.
 
+    VERY IMPORTANT NOTE: Each layer in the module MUST not be reused multiple time.
+    EACH operator defined in init MUST BE APPLIED ONLY ONCE IN THE WHOLE NETWORK
+
+    Also do not use functional operators if you want to inject them. Define always operators in the __init__
+
+    WHY THESE RESTRICTIONS?
+    Before generating faults, CLASSES profiles modules output shapes, and uses their fully qualified
+    name to index them in the result of classes.simulators.pytorch.module_profiler.module_shape_profiler() function
+    If there are two layers with the same name module_shape_profiler() returns a bad output and an error will
+    be raised during error simulation.
+
+
     Args
     ----
     * `module : nn.Module`. The module to be profiled

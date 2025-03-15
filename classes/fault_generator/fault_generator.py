@@ -24,10 +24,31 @@ class FaultGenerator:
     generator_mapping: Mapping[str, PatternGenerator] = field(
         default_factory=get_default_generators
     )
+    """
+    Maps the spatial_class to a PatternGenerator function (that generates the spatial distribution of the errors).\
+    If not specified uses the one in get_default_generators
+    """
     layout: str = "CHW"
+    """
+    The layout of the tensor. Defaults to CHW (channel first)
+    NOTE: Not 100% sure that other layout work
+    """
     fixed_spatial_class: Optional[str] = None
+    """
+    If specified, forces the generator to always use this spatial pattern class instead of sampling from the error model distribution.
+    If None, spatial pattern classes will be randomly sampled according to their frequency in the error model.
+    """
     fixed_spatial_parameters: Optional[Dict[str, Any]] = None
+    """
+    If specified, forces the generator to use these parameters for the spatial pattern instead of sampling from the error model distribution.
+    If None, spatial pattern parameters will be randomly sampled from their distributions in the error model.
+    """
     fixed_domain_class: Optional[ValueClassDistribution] = None
+
+    """
+    If specified, forces the generator to use this domain class distribution instead of sampling from the error model distribution.
+    If None, domain classes will be randomly sampled according to their frequency in the error model.
+    """
 
     def __post_init__(self):
         if (

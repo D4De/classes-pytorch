@@ -22,6 +22,7 @@ def create_simulator_hook(pytorch_fault: PyTorchFault):
 
 
 def create_batched_simulator_hook(pytorch_fault: PyTorchFaultBatch):
+    # DEPRECATED: Use only create_simulator_hook with non batched faults
     def _error_simulator_hook(module, input, output):
         mask = pytorch_fault.corrupted_value_mask
         output[mask != 0] = pytorch_fault.corrupted_values

@@ -10,3 +10,4 @@ __pycache__
 .venv_tf
 build
 classes.egg-info
+data/*

@@ -50,6 +50,9 @@ class FaultBatch:
     def __iter__(self):
         # Enable tuple unpacking
         return iter(astuple(self))
+    
+    def __len__(self):
+        return len(self.spatial_pattern_names)
 
     def get_element(self, idx: int):
         value_begin, value_end = self.corrupted_values_index[idx : idx + 1]
