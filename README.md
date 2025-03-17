@@ -77,7 +77,7 @@ and corrupts the result of the layer.
 
 ### Supported operators
 
-The operators supported aarethe following:
+The operators supported are the following:
 
 - Convolution: 2d GEMM convolution
 - Pooling: Max and Average 2d
@@ -94,7 +94,7 @@ We executed an error injection campaign on GPU to create error models that could
 - Pattern: the spatial distribution of the corrupted values.
 - Values: the numerical value of the corrupted data.
 
-These models were revised and rationalized in the thesis [A novel approach for error modeling in a cross-layer reliability analysis of convolutional neural networks](https://www.politesi.polimi.it/bitstream/10589/210019/4/tesi_passarello_finale_2.pdf) and used in the following publications where CLASSES was employed. Now the models are build hierarchically, modeling the errors first by their spatial patterns, that are classes of corrupted tensors that have similar spatial distribution patterns. Example of spatial patterns are extracted from experiments performed on an Ampere GPU using NVBITFI we found these recurring patterns:
+These models were revised and rationalized in the thesis [A novel approach for error modeling in a cross-layer reliability analysis of convolutional neural networks](https://www.politesi.polimi.it/bitstream/10589/210019/4/tesi_passarello_finale_2.pdf) and used in the following publications where CLASSES was employed. Now the models are built hierarchically, modeling the errors first by their spatial patterns, that are classes of corrupted tensors that have similar spatial distribution patterns. Example of spatial patterns are extracted from experiments performed on an Ampere GPU using NVBITFI we found these recurring patterns:
 
 1. **Single Point**: a single erroneous value is found in the output tensor.
 
@@ -116,11 +116,11 @@ These models were revised and rationalized in the thesis [A novel approach for e
 
 10. **Random**: either a single channel or multiple ones are corrupted with an irregular pattern.
 
-For each occourring pattern the error models contains other two sub characterizations:
+For each occurring pattern the error models contain other two sub characterizations:
 
-- Spatial parameters, that allow to better generalize and characterized the spatial distributions. Examples of spatial parameters are:
+- Spatial parameters, that allow to better generalize and characterize the spatial distributions. Examples of spatial parameters are:
   - Percentage of channels of the tensors that are corrupted
-  - Maxium number of faults that are corrupted
+  - Maximum number of faults that are corrupted
   - Interval (or skip) between two corrupted values in the linearized tensor.
     Each spatial class has its own set of parameters.
 - Domain models, that models the distribution of the corrupted values.
@@ -138,7 +138,7 @@ Then the tensor is classified in categories of Value Class distributions that is
 - Double Value Class: All errors belong to only two different value classes. In this case the proportion of values is stored in the class.
 - Random. The tensor is not on one of these two classes.
 
-The error models are obtained by first performing a fault injection at the architectural level (for example using NVBitFI) and then using the CNN error classifier tool (available in this [repository]([repository](https://miele.faculty.polimi.it/batch_conv_3_with_igprofile.tar.gz)) ) that analyzes the fault injection results and creates the models. The models can be found in this repo in the `models` folder, that contains one different model json file per operator. CLASSES will read from these models and will generate error patters using the models specified in the json.
+The error models are obtained by first performing a fault injection at the architectural level (for example using NVBitFI) and then using the CNN error classifier tool (available in this [repository](https://miele.faculty.polimi.it/batch_conv_3_with_igprofile.tar.gz) ) that analyzes the fault injection results and creates the models. The models can be found in this repo in the `models` folder, that contains one different model json file per operator. CLASSES will read from these models and will generate error patterns using the models specified in the json.
 For a given operator the json file contains the relative frequency of each spatial pattern, and for each spatial pattern, there are the relative frequency for each configuration of spatial parameters and domain parameters.
 
 The injection site generator will pick at random a spatial pattern (with a probability equal to its relative frequency) and a configuration of spatial and domain parameters. The generator then picks the corrupted locations in the tensor by calling the pattern generator function corresponding to the picked spatial pattern (the code pattern generator functions are in `src/pattern_generators`). For each corrupted location a value is picked based on the domain parameters distribution, and then the corrupted tensor is inserted in the network by the error simulator module described below.
@@ -149,7 +149,7 @@ The framework is composed by two decoupled parts: the backend and the frontend.
 
 ## Backend
 
-The backend code is in charge of generating the faults (or errors) to be injected into the execution. The generation is done by the `FaultGenerator (classes.fault_generator.FaultGenerator)` guided the specific error models corresponding to the operator of the current target layer (loaded from the models json and stored in a `ErrorModel` object). The `FaultGenerator` given the error model, the shape of the output of the target lauyer to corrupt and the operating range (minimum and maximum values of the output tensor during normal operation), generates a `Fault` (or multiple faults inside a `FaultBatch`).
+The backend code is in charge of generating the faults (or errors) to be injected into the execution. The generation is done by the `FaultGenerator (classes.fault_generator.FaultGenerator)` guided the specific error models corresponding to the operator of the current target layer (loaded from the models json and stored in a `ErrorModel` object). The `FaultGenerator` given the error model, the shape of the output of the target layer to corrupt and the operating range (minimum and maximum values of the output tensor during normal operation), generates a `Fault` (or multiple faults inside a `FaultBatch`).
 
 The `Fault` object represents a framework independent fault and is characterized by:
 
@@ -165,7 +165,7 @@ will inject in the target layers of the network
 
 ## Frontend
 
-The frontends of CLASSES inject the faults generated in the backend in the execution of the inference. Frontend are framework specific because they need to use the functions present in the deep learning framework used by the network. In this repository there is a frontend only for PyTorch. A frontend for Tensorflow can be implemented in the future reusing the same backend.
+The frontends of CLASSES inject the faults generated in the backend in the execution of the inference. Frontends are framework specific because they need to use the functions present in the deep learning framework used by the network. In this repository there is a frontend only for PyTorch. A frontend for Tensorflow can be implemented in the future reusing the same backend.
 
 The frontend has the following resposibilities:
 
