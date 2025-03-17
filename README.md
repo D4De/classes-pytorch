@@ -29,7 +29,7 @@ Neither the name of Politecnico di Milano nor the names of its contributors may 
 
 ## Installation
 
-NOTE: This newer version of CLASSES supports only PyTorch (for now). The older version of CLASSES supports only Tensorflow2/Least is available ![here](https://github.com/D4De/classes)
+NOTE: This newer version of CLASSES supports only PyTorch (for now). The older version of CLASSES supports only Tensorflow2/Least is available [here](https://github.com/D4De/classes)
 
 1. Create a virtual environment and activate it
 
@@ -38,7 +38,7 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-2. Install the correct PyTorch version for your setup using the ![PyTorch official installation guide](https://pytorch.org/get-started/locally/).
+2. Install the correct PyTorch version for your setup using the [PyTorch official installation guide](https://pytorch.org/get-started/locally/).
 
 3. Install the remaining requirements:
 
@@ -94,7 +94,7 @@ We executed an error injection campaign on GPU to create error models that could
 - Pattern: the spatial distribution of the corrupted values.
 - Values: the numerical value of the corrupted data.
 
-These models were revised and rationalized in the thesis ![A novel approach for error modeling in a cross-layer reliability analysis of convolutional neural networks](https://www.politesi.polimi.it/bitstream/10589/210019/4/tesi_passarello_finale_2.pdf) and used in the following publications where CLASSES was employed. Now the models are build hierarchically, modeling the errors first by their spatial patterns, that are classes of corrupted tensors that have similar spatial distribution patterns. Example of spatial patterns are extracted from experiments performed on an Ampere GPU using NVBITFI we found these recurring patterns:
+These models were revised and rationalized in the thesis [A novel approach for error modeling in a cross-layer reliability analysis of convolutional neural networks](https://www.politesi.polimi.it/bitstream/10589/210019/4/tesi_passarello_finale_2.pdf) and used in the following publications where CLASSES was employed. Now the models are build hierarchically, modeling the errors first by their spatial patterns, that are classes of corrupted tensors that have similar spatial distribution patterns. Example of spatial patterns are extracted from experiments performed on an Ampere GPU using NVBITFI we found these recurring patterns:
 
 1. **Single Point**: a single erroneous value is found in the output tensor.
 
@@ -138,7 +138,7 @@ Then the tensor is classified in categories of Value Class distributions that is
 - Double Value Class: All errors belong to only two different value classes. In this case the proportion of values is stored in the class.
 - Random. The tensor is not on one of these two classes.
 
-The error models are obtained by first performing a fault injection at the architectural level (for example using NVBitFI) and then using the CNN error classifier tool (available in this ![https://github.com/D4De/cnn-error-classifier](repository) ) that analyzes the fault injection results and creates the models. The models can be found in this repo in the `models` folder, that contains one different model json file per operator. CLASSES will read from these models and will generate error patters using the models specified in the json.
+The error models are obtained by first performing a fault injection at the architectural level (for example using NVBitFI) and then using the CNN error classifier tool (available in this [repository]([repository](https://miele.faculty.polimi.it/batch_conv_3_with_igprofile.tar.gz)) ) that analyzes the fault injection results and creates the models. The models can be found in this repo in the `models` folder, that contains one different model json file per operator. CLASSES will read from these models and will generate error patters using the models specified in the json.
 For a given operator the json file contains the relative frequency of each spatial pattern, and for each spatial pattern, there are the relative frequency for each configuration of spatial parameters and domain parameters.
 
 The injection site generator will pick at random a spatial pattern (with a probability equal to its relative frequency) and a configuration of spatial and domain parameters. The generator then picks the corrupted locations in the tensor by calling the pattern generator function corresponding to the picked spatial pattern (the code pattern generator functions are in `src/pattern_generators`). For each corrupted location a value is picked based on the domain parameters distribution, and then the corrupted tensor is inserted in the network by the error simulator module described below.
