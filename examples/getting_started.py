@@ -179,8 +179,11 @@ def main():
         fault = generator.generate_mask(
             output_shape=shape_profile[injected_layer_name],
         )
+        
         # 4. Convert the Fault objects to PyTorchFault (to apply them to pytorch models)
-        faults.append(PyTorchFault.from_fault(fault))
+        torch_fault = PyTorchFault.from_fault(fault)
+        torch_fault.to(device=device)
+        faults.append(torch_fault)
 
 
     for fault in faults:
