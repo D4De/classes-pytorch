@@ -1,0 +1,241 @@
+{
+   "_rejected_tensors_proportion": 0.0,
+   "_tensor_count": 4119,
+   "_categories_count": 1,
+   "single": {
+      "count": 3219,
+      "frequency": 0.7815003641660597,
+      "categories_count": 1,
+      "domain_classes": [
+         {
+            "out_of_range": [
+               100.0,
+               100.0
+            ],
+            "count": 1546,
+            "frequency": 0.48027337682510096
+         },
+         {
+            "in_range": [
+               100.0,
+               100.0
+            ],
+            "count": 1511,
+            "frequency": 0.4694004349176763
+         },
+         {
+            "zero": [
+               100.0,
+               100.0
+            ],
+            "count": 149,
+            "frequency": 0.04628766697732215
+         },
+         {
+            "random": [
+               100.0,
+               100.0
+            ],
+            "count": 13,
+            "values": {
+               "out_of_range": 0.48027337682510096,
+               "in_range": 0.4694004349176763,
+               "zero": 0.04628766697732215,
+               "nan": 0.00403852127990059
+            },
+            "frequency": 0.00403852127990059
+         }
+      ],
+      "parameters": [
+         {
+            "keys": {},
+            "stats": {},
+            "conditional_frequency": 1.0,
+            "overall_frequency": 0.7815003641660597,
+            "count": 3219
+         }
+      ]
+   },
+   "skip_4": {
+      "count": 900,
+      "frequency": 0.21849963583394028,
+      "categories_count": 5,
+      "domain_classes": [
+         {
+            "in_range": [
+               100.0,
+               100.0
+            ],
+            "count": 379,
+            "frequency": 0.4211111111111111
+         },
+         {
+            "out_of_range": [
+               100.0,
+               100.0
+            ],
+            "count": 341,
+            "frequency": 0.3788888888888889
+         },
+         {
+            "zero": [
+               100.0,
+               100.0
+            ],
+            "count": 166,
+            "frequency": 0.18444444444444444
+         },
+         {
+            "random": [
+               100.0,
+               100.0
+            ],
+            "count": 14,
+            "values": {
+               "in_range": 0.45681381957773515,
+               "out_of_range": 0.36506717850287906,
+               "zero": 0.17389635316698657,
+               "nan": 0.004222648752399232
+            },
+            "frequency": 0.015555555555555555
+         }
+      ],
+      "parameters": [
+         {
+            "keys": {
+               "skip_amount": 4,
+               "unique_channel_indexes": 2,
+               "indexes_corruption_pct": [
+                  90.0,
+                  100.0
+               ],
+               "affected_channels_pct": [
+                  0.0,
+                  10.0
+               ]
+            },
+            "stats": {
+               "max_corrupted_channels": 1,
+               "min_channel_skip": 1,
+               "max_channel_skip": 1
+            },
+            "conditional_frequency": 0.4688888888888889,
+            "overall_frequency": 0.10245205146880311,
+            "count": 422
+         },
+         {
+            "keys": {
+               "skip_amount": 4,
+               "unique_channel_indexes": 3,
+               "indexes_corruption_pct": [
+                  90.0,
+                  100.0
+               ],
+               "affected_channels_pct": [
+                  0.0,
+                  10.0
+               ]
+            },
+            "stats": {
+               "max_corrupted_channels": 1,
+               "min_channel_skip": 1,
+               "max_channel_skip": 1
+            },
+            "conditional_frequency": 0.32666666666666666,
+            "overall_frequency": 0.07137654770575383,
+            "count": 294
+         },
+         {
+            "keys": {
+               "skip_amount": 4,
+               "unique_channel_indexes": 3,
+               "indexes_corruption_pct": [
+                  90.0,
+                  100.0
+               ],
+               "affected_channels_pct": [
+                  10.0,
+                  20.0
+               ]
+            },
+            "stats": {
+               "max_corrupted_channels": 1,
+               "min_channel_skip": 1,
+               "max_channel_skip": 1
+            },
+            "conditional_frequency": 0.07444444444444444,
+            "overall_frequency": 0.01626608400097111,
+            "count": 67
+         },
+         {
+            "keys": {
+               "skip_amount": 4,
+               "unique_channel_indexes": 4,
+               "indexes_corruption_pct": [
+                  90.0,
+                  100.0
+               ],
+               "affected_channels_pct": [
+                  0.0,
+                  10.0
+               ]
+            },
+            "stats": {
+               "max_corrupted_channels": 1,
+               "min_channel_skip": 1,
+               "max_channel_skip": 1
+            },
+            "conditional_frequency": 0.056666666666666664,
+            "overall_frequency": 0.012381646030589949,
+            "count": 51
+         },
+         {
+            "keys": {
+               "skip_amount": 4,
+               "unique_channel_indexes": {
+                  "RANDOM": [
+                     2,
+                     4,
+                     5,
+                     6,
+                     8
+                  ]
+               },
+               "indexes_corruption_pct": [
+                  90.0,
+                  100.0
+               ],
+               "affected_channels_pct": {
+                  "RANDOM": [
+                     [
+                        50.0,
+                        60.0
+                     ],
+                     [
+                        0.0,
+                        10.0
+                     ],
+                     [
+                        10.0,
+                        20.0
+                     ]
+                  ]
+               }
+            },
+            "stats": {
+               "max_corrupted_channels": {
+                  "RANDOM": [
+                     1,
+                     37
+                  ]
+               },
+               "min_channel_skip": 1,
+               "max_channel_skip": 1
+            },
+            "conditional_frequency": 0.07333333333333333,
+            "overall_frequency": 0.016023306627822288,
+            "count": 66
+         }
+      ]
+   }
+}
