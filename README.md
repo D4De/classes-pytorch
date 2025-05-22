@@ -88,7 +88,7 @@ Other operators can be added after generating their error models performing plat
 
 ### Error models
 
-We executed an error injection campaign on GPU to create error models that could be as loyal as possible to the real world. The older error models used in classes were defined based on three parameters
+We executed an error injection campaign on GPU to create error models that could be as loyal as possible to the real world. The older error models used in classes were defined based on three parameters:
 
 - Cardinality: the number of corrupted values observed in a faulty tensor with respect to the expected version.
 - Pattern: the spatial distribution of the corrupted values.
@@ -138,7 +138,7 @@ Then the tensor is classified in categories of Value Class distributions that is
 - Double Value Class: All errors belong to only two different value classes. In this case the proportion of values is stored in the class.
 - Random. The tensor is not on one of these two classes.
 
-The error models are obtained by first performing a fault injection at the architectural level (for example using NVBitFI) and then using the CNN error classifier tool (available in this [repository](https://miele.faculty.polimi.it/batch_conv_3_with_igprofile.tar.gz) ) that analyzes the fault injection results and creates the models. The models can be found in this repo in the `models` folder, that contains one different model json file per operator. CLASSES will read from these models and will generate error patterns using the models specified in the json.
+The error models are obtained by first performing a fault injection at the architectural level (for example using NVBitFI) and then using the CNN error classifier tool (available in this [repository](https://github.com/D4De/cnn-error-classifier) ) that analyzes the fault injection results and creates the models. The models can be found in this repo in the `models` folder, that contains one different model json file per operator. CLASSES will read from these models and will generate error patterns using the models specified in the json.
 For a given operator the json file contains the relative frequency of each spatial pattern, and for each spatial pattern, there are the relative frequency for each configuration of spatial parameters and domain parameters.
 
 The injection site generator will pick at random a spatial pattern (with a probability equal to its relative frequency) and a configuration of spatial and domain parameters. The generator then picks the corrupted locations in the tensor by calling the pattern generator function corresponding to the picked spatial pattern (the code pattern generator functions are in `src/pattern_generators`). For each corrupted location a value is picked based on the domain parameters distribution, and then the corrupted tensor is inserted in the network by the error simulator module described below.
