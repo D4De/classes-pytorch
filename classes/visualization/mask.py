@@ -157,6 +157,6 @@ def plot_mask(
     if save:
         if output_path is None:
             raise ValueError("Output path is required for saving file")
-
-    plt.savefig(output_path)
+        plt.savefig(output_path)
+            
     plt.close()

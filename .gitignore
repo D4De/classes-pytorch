@@ -11,3 +11,10 @@ __pycache__
 build
 classes.egg-info
 data/*
+.spyproject
+
+experiments/dataset_data/**
+experiments/exp*
+**/*Zone.Identifier
+**/*.pth
+**/*.pt

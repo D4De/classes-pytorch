@@ -5,6 +5,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 
+import classes
 from classes.error_models.error_model import ErrorModel
 from classes.fault_generator.fault_generator import FaultGenerator
 from classes.simulators.pytorch.module_profiler import module_shape_profiler

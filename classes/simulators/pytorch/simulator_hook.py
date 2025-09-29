@@ -14,7 +14,12 @@ def create_simulator_hook(pytorch_fault: PyTorchFault):
 
     def _error_simulator_hook(module, input, output):
         mask = pytorch_fault.corrupted_value_mask
-        output[:, mask != 0] = pytorch_fault.corrupted_values
+        
+        # adjust for broadcasting
+        if len(output.shape) > len(mask.shape):
+            output[:, mask != 0] = pytorch_fault.corrupted_values
+        else:
+            output[mask != 0] = pytorch_fault.corrupted_values
 
         return output
 

@@ -1,0 +1,6 @@
+[submodule "dnn-benchmarks"]
+	path = nets_repo
+	url = https://github.com/AlessandroVeronesi/dnn-benchmarks.git
+[submodule "dnn-benchmarks-extra-nets"]
+	path = other_nets
+	url = https://github.com/AlbSca/dnn-benchmarks-extra-nets.git

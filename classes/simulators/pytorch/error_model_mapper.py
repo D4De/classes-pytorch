@@ -15,7 +15,7 @@ ModuleToFaultGeneratorMapper = Callable[[str, nn.Module], Optional[FaultGenerato
 
 
 def create_module_to_generator_mapper(
-    model_folder_path="error_models/models",
+    model_folder_path="error_models/faulty_thread_models",
     conv_strategy: Literal["conv_gemm", "conv_fft", "conv_win"] = "conv_gemm",
     generator_mapping: Mapping[str, PatternGenerator] = get_default_generators(),
     layout="CHW",
@@ -81,9 +81,9 @@ def create_module_to_generator_mapper(
     # convolution has multiple error models, the one chosen is passed as argument
     module_to_err_model_mapping: dict[type, str] = {
         nn.Conv2d: conv_strategy,
-        nn.MaxPool2d: "maxpool",
-        nn.AvgPool2d: "avgpool",
-        nn.BatchNorm2d: "batchnorm",
+        #nn.MaxPool2d: "maxpool",
+        #nn.AvgPool2d: "avgpool",
+        #nn.BatchNorm2d: "batchnorm",
         #nn.ReLU: "relu",
         #nn.Sigmoid: "sigmoid",
         #nn.Tanh: "tanh",

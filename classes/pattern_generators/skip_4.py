@@ -60,5 +60,13 @@ def skip_4_generator(
         access = create_access_tuple(layout, c=chan, h=h_coords, w=w_coords)
         pct_corrupted = np.random.uniform(*params["indexes_corruption_pct"])
         corr_randomness = np.random.uniform(size=len(candidate_locations_per_channel))
-        mask[access] = corr_randomness < pct_corrupted
+        
+        corruptions = corr_randomness < pct_corrupted
+        
+        if len(mask[access].shape) > len(corruptions.shape):
+            # reshape to be able to broadcast to the mask
+            corruptions.shape = (corruptions.shape[0], 1)
+        
+        # mask[access] = corr_randomness < pct_corrupted
+        mask[access] = corruptions
     return mask

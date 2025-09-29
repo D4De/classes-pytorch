@@ -5,6 +5,7 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 
+import classes
 from classes.simulators.pytorch.error_model_mapper import create_module_to_generator_mapper
 from classes.simulators.pytorch.fault_list import PyTorchFaultList, PyTorchFaultListMetadata
 from classes.simulators.pytorch.fault_list_datasets import FaultListFromTarFile
@@ -213,7 +214,7 @@ def main():
         fault_list_loader = torch.utils.data.DataLoader(
             fault_list_dataset,
             batch_size=None,
-            num_workers=8,
+            num_workers=0,
             pin_memory=True,
         )
         

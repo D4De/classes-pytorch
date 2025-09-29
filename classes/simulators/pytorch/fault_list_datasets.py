@@ -8,6 +8,7 @@ from torch.utils.data import Dataset, IterableDataset
 
 import tarfile
 import os
+import pathlib
 import numpy as np
 
 from classes.simulators.pytorch.pytorch_fault import PyTorchFault, PyTorchFaultBatch
@@ -72,9 +73,13 @@ class FaultListFromTarFile(Dataset[PyTorchFault]):
 
         file_idx = module_idx // self.info.fault_batch_size
         batch_idx = module_idx % self.info.fault_batch_size
-        fault_file_path = os.path.join(
-            selected_module_name, f"{file_idx}_faults_{selected_module_name}.npz"
-        )
+        
+        # fault_file_path = os.path.join(
+        #     selected_module_name, f"{file_idx}_faults_{selected_module_name}.npz"
+        # )
+        
+        # tarfile.py only supports posix pathfiles: force the path format to posix, even on Windows
+        fault_file_path = pathlib.Path(f"{selected_module_name}/{file_idx}_faults_{selected_module_name}.npz").as_posix()
 
         with tarfile.TarFile(self.fault_list_path, "r") as tarf:
             member_file = tarf.extractfile(fault_file_path)
