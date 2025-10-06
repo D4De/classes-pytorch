@@ -4,3 +4,6 @@
 [submodule "dnn-benchmarks-extra-nets"]
 	path = other_nets
 	url = https://github.com/AlbSca/dnn-benchmarks-extra-nets.git
+[submodule "PyTorchQuantLib"]
+	path = PyTorchQuantLib
+	url = https://github.com/AlessandroVeronesi/PyTorchQuantLib.git

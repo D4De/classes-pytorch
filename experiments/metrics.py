@@ -1,4 +1,3 @@
-import csv
 import torch
 import numpy as np
 
@@ -77,35 +76,7 @@ def find_ranking_shifts(faulty_output: torch.Tensor, golden_output: torch.Tensor
     return equal_rankings
 
 
-def kendall_tau(*, ranking: torch.Tensor, golden_ranking: torch.Tensor):
-    """
-    Given a ranking and the corresponding golden ranking, computes the Kendall Tau distance.
-    Note: ranking must be a valid permutation of golden_ranking and both tensors must be of shape (1, num_classes).
-    """
-    assert len(ranking.shape) == 2 and len(golden_ranking.shape) == 2, "Rankings are not 2D"
-    assert ranking.shape[0] == golden_ranking.shape[0] == 1, "Rankings' first dimension is not 1"
-    assert ranking.shape == golden_ranking.shape, "Rankings have different shapes"
-
-    ranking_np = ranking.numpy()
-    golden_ranking_np = golden_ranking.numpy()
-    return kendalltau(ranking_np, golden_ranking_np).statistics.item()
-
-
-def reciprocal_rank(*, ranking: torch.Tensor, golden_ranking: torch.Tensor):
-    """
-    Given a ranking and the corresponding golden ranking, computes the Reciprocal Rank metric.
-    Note: ranking must be a valid permutation of golden_ranking and both tensors must be of shape (1, num_classes).
-    """
-    assert len(ranking.shape) == 2 and len(golden_ranking.shape) == 2, "Rankings are not 2D"
-    assert ranking.shape[0] == golden_ranking.shape[0] == 1, "Rankings' first dimension is not 1"
-    assert ranking.shape == golden_ranking.shape, "Rankings have different shapes"
-
-    topclass_index = golden_ranking[0][0]
-    position_in_ranking = ranking[0].tolist().index(topclass_index) + 1
-    return 1.0 / position_in_ranking
-
-
-def rank_biased_overlap(*, ranking: torch.Tensor, golden_ranking: torch.Tensor, p: float = 0.62):
+def rank_biased_overlap(ranking: torch.Tensor, golden_ranking: torch.Tensor, p: float = 0.62):
     """
     Given a ranking and the corresponding golden ranking, computes the Rank Biased Overlap metric.
     The p value determines how much the top classes in the ranking contribute to the metric.
@@ -113,17 +84,23 @@ def rank_biased_overlap(*, ranking: torch.Tensor, golden_ranking: torch.Tensor, 
     to determine what value of p to choose.
     By default, we want the first 3 classes to contribute to roughly 90% of the ranking, so we set p to 0.62.
     """
-    assert len(ranking.shape) == 2 and len(golden_ranking.shape) == 2, "Rankings are not 2D"
-    assert ranking.shape[0] == golden_ranking.shape[0] == 1, "Rankings' first dimension is not 1"
-    assert ranking.shape == golden_ranking.shape, "Rankings have different shapes"
+    assert ranking.shape == golden_ranking.shape, f"Rankings have different shapes: {ranking.shape=} and {golden_ranking.shape=}"
 
+    rank_length = ranking.shape[-1]
     sum = 0.0
     # iterate through the ranking
-    for d in range(ranking.shape[-1]):
-        agreement_up_to_d = torch.sum(torch.eq(ranking, golden_ranking), dim=-1).squeeze().item()
-        sum += p**(d-1) * agreement_up_to_d/d
+    for d in range(1, rank_length+1):
+        ranking_up_to_d = ranking.squeeze()[:d]
+        golden_up_to_d = golden_ranking.squeeze()[:d]
+
+        overlap = 0
+        for rank_element in ranking_up_to_d:
+            overlap += 1 if rank_element in golden_up_to_d else 0
+
+        a_d = overlap/d
+        sum += p**d * a_d
     
-    return sum * (1.0 - p)
+    return a_d * p**rank_length + ((1-p)/p * sum)
 
 
 def mIOU(prediction: torch.Tensor, target: torch.Tensor, num_classes: int):
@@ -131,7 +108,7 @@ def mIOU(prediction: torch.Tensor, target: torch.Tensor, num_classes: int):
     Computes the mean IOU for a single image, given the prediction and the ground truth.
     prediction and target should be of size (height, width)
     """
-    assert prediction.shape == target.shape, f'Prediction and target shapes do not match: {prediction.shape} and {target.shape}'
+    assert prediction.shape == target.shape, f'Prediction and target shapes do not match: {prediction.shape=} and {target.shape=}'
 
     #prediction = prediction.max(1)[1].float().cpu().numpy()
     #target = target.float().cpu().numpy() 
@@ -154,9 +131,12 @@ def mIOU(prediction: torch.Tensor, target: torch.Tensor, num_classes: int):
     return miou
 
 
-def segmentation_precision_recall(prediction: torch.Tensor, target: torch.Tensor, num_classes: int):
-    assert prediction.shape == target.shape, f'Prediction and target shapes do not match: {prediction.shape} and {target.shape}'
-    total_precision = total_recall = 0.0
+def evaluate_segmentation(prediction: torch.Tensor, target: torch.Tensor, num_classes: int):
+    """
+    Takes an image and the corresponding target (labelled) image and finds the number of true positive, false positive and false negative pixels.
+    """
+    assert prediction.shape == target.shape, f'Prediction and target shapes do not match: {prediction.shape=} and {target.shape=}'
+    TP = FP = FN = 0
 
     for sem_class in range(num_classes):
         pred_inds = (prediction == sem_class)
@@ -165,17 +145,11 @@ def segmentation_precision_recall(prediction: torch.Tensor, target: torch.Tensor
         pred_total = pred_inds.sum().item()
         target_total = target_inds.sum().item()
 
-        true_positives = (pred_inds[target_inds]).sum().item() # pixels that match
-        false_positives = pred_total - true_positives # predicted pixels that are not actually labelled
-        false_negatives = target_total - true_positives # labelled pixels that were not matched
+        TP += (pred_inds[target_inds]).sum().item() # pixels that match
+        FP += pred_total - TP # predicted pixels that are not actually labelled
+        FN += target_total - TP # labelled pixels that were not matched
 
-        total_precision += true_positives / (true_positives + false_positives)
-        total_recall += true_positives / (true_positives + false_negatives)
-    
-    avg_precision = total_precision / num_classes
-    avg_recall = total_recall / num_classes
-
-    return avg_precision, avg_recall
+    return TP, FP, FN
 
 
 def iou_two_bboxes(predicted_box: list[float], golden_box: list[float]):
@@ -228,10 +202,9 @@ def yolo_coco_evaluate_golden(ground_truth: list[dict], predictions: Results, io
     The evaluation outputs the number of true positives, false positives and false negatives.
     """
     TP = FP = FN = 0
-    matched_true_indices = [] # true boxes that are matched are subesequently ignored
+    matched_true_indices = [] # true boxes that are matched are subsequently ignored
 
-    predicted_boxes = predictions.boxes
-    predicted_classes, predicted_coords = predicted_boxes.cls.tolist(), predicted_boxes.xyxy.tolist()
+    predicted_classes, predicted_coords = predictions.boxes.cls.tolist(), predictions.boxes.xyxy.tolist()
 
     # iterate through the predicted boxes
     for pred_class, pred_xyxy in zip(predicted_classes, predicted_coords):
@@ -277,8 +250,7 @@ def yolo_coco_evaluate_corrupted(golden: Results, corrupted: Results, iou_thresh
     TP = FP = FN = 0
     matched_golden_indices = [] # golden boxes that are matched are subesequently ignored
 
-    golden_boxes = golden.boxes
-    golden_classes, golden_coords = golden_boxes.cls.tolist(), golden_boxes.xyxy.tolist()
+    golden_classes, golden_coords = golden.boxes.cls.tolist(), golden.boxes.xyxy.tolist()
 
     corrupted_boxes = corrupted.boxes
     corrupted_classes, corrupted_coords = corrupted_boxes.cls.tolist(), corrupted_boxes.xyxy.tolist()
@@ -391,8 +363,8 @@ def compute_yolo_detection_golden_run_metrics(golden_results, logger, report_dat
 
 
 
-def compute_classification_final_metrics(*,
-    error_report_path: str, module_name: str, error_number: int, fault: PyTorchFault,
+def compute_classification_final_metrics(
+    csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
     error_results, golden_results,
     tolerance: float, 
 ):
@@ -401,110 +373,120 @@ def compute_classification_final_metrics(*,
 
     # REMINDER: the CSV fields are
     # ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present',
-    # 'Kendall Tau', 'Reciprocal Rank', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']
-    with open(error_report_path, 'w', newline='') as error_report_csv:
-        csv_writer = csv.writer(error_report_csv)
-        # write header
-        csv_writer.writerow(['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present', 'Kendall Tau', 'Reciprocal Rank', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking'])
+    # 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']
+    num_masked = num_sdc_safe = num_sdc_critical = 0
+    total_tau = total_rbo = 0.0
 
-        num_masked = num_sdc_safe = num_sdc_critical = 0
+    # compare row by row
+    for i, output_row in enumerate(scores):
+        csv_fields = [module_name, error_number]
+        golden_row = golden_scores[i]
 
-        # compare row by row
-        for i, output_row in enumerate(scores):
-            csv_fields = [module_name, error_number]
-            golden_row = golden_scores[i]
+        error = torch.abs(output_row - golden_row) # subtract the two rows
+        error = (error >= tolerance).squeeze() # find where the difference is greater than the tolerance
 
-            error = torch.abs(output_row - golden_row) # subtract the two rows
-            error = (error >= tolerance).squeeze() # find where the difference is greater than the tolerance
+        if error.any().item(): # if at any point the difference is greater than the tolerance, the row is corrupted
+            csv_fields.append(i) # add sample index
+            csv_fields.append(fault.spatial_pattern_name) # add spatial pattern
 
-            if error.any().item(): # if at any point the difference is greater than the tolerance, the row is corrupted
-                csv_fields.append(i) # add sample index
-                csv_fields.append(fault.spatial_pattern_name) # add spatial pattern
+            rankings_row = rankings[i]
+            golden_rankings_row = golden_rankings[i]
 
-                rankings_row = rankings[i]
-                golden_rankings_row = golden_rankings[i]
+            csv_fields.append(golden_rankings_row[0].item()) # add golden topclass
+            csv_fields.append(rankings_row[0].item()) # add corrupted topclass
 
-                csv_fields.append(golden_rankings_row[0].item()) # add golden topclass
-                csv_fields.append(rankings_row[0].item()) # add corrupted topclass
-
-                # check if all ranking values match
-                rankings_are_equal = torch.all(torch.eq(rankings_row, golden_rankings_row), -1).squeeze().item()
-                if rankings_are_equal:
-                    # SDC SAFE
-                    num_sdc_safe += 1
-                    ranking_deviation_field = 'No'
-                    tau = 1.0
-                    reciprocal_rank = 1
-                    rbo = 1.0
-                else:
-                    # SDC CRITICAL
-                    num_sdc_critical += 1
-                    ranking_deviation_field = 'Yes'
-                    tau = kendall_tau(rankings_row, golden_rankings_row)
-                    reciprocal_rank = reciprocal_rank(rankings_row, golden_rankings_row)
-                    rbo = rank_biased_overlap(rankings_row, golden_rankings_row)
-
-                csv_fields.append(ranking_deviation_field)
-                csv_fields.append(tau)
-                csv_fields.append(rbo)
-
-                # get the remaining parts of the two rankings
-                rest_rankings = str(rankings_row[1:].tolist()).replace(',', ' |')
-                rest_golden_rankings = str(golden_rankings_row[1:].tolist()).replace(',', ' |')
-                csv_fields.append(rest_golden_rankings)
-                csv_fields.append(rest_rankings)
-                csv_writer.writerow(csv_fields)
+            # check if all ranking values match
+            rankings_are_equal = torch.all(torch.eq(rankings_row, golden_rankings_row), -1).squeeze().item()
+            if rankings_are_equal:
+                # SDC SAFE
+                num_sdc_safe += 1
+                ranking_deviation_field = 'No'
+                tau = 1.0
+                rbo = 1.0
             else:
-                # MASKED
-                num_masked += 1
+                # SDC CRITICAL
+                num_sdc_critical += 1
+                ranking_deviation_field = 'Yes'
+                tau = kendalltau(rankings_row.cpu(), golden_rankings_row.cpu()).statistic.item()
+                rbo = rank_biased_overlap(rankings_row, golden_rankings_row)
+
+            csv_fields.append(ranking_deviation_field)
+            csv_fields.append(tau)
+            csv_fields.append(rbo)
+
+            total_tau += tau
+            total_rbo += rbo
+
+            # get the remaining parts of the two rankings
+            rest_rankings = str(rankings_row[1:].tolist()).replace(',', ' |')
+            rest_golden_rankings = str(golden_rankings_row[1:].tolist()).replace(',', ' |')
+            csv_fields.append(rest_golden_rankings)
+            csv_fields.append(rest_rankings)
+            csv_writer.writerow(csv_fields)
+        else:
+            # MASKED
+            num_masked += 1
+        
+        # save average total statistics for this fault
+        num_samples = scores.shape[0]
+        metrics_dict[module_name][error_number]['Average Kendall Tau'] = total_tau / num_samples
+        metrics_dict[module_name][error_number]['Average RBO'] = total_rbo / num_samples
     
     return num_masked, num_sdc_safe, num_sdc_critical
 
 
-def compute_segmentation_final_metrics(*,
-    error_report_path: str, module_name: str, error_number: int, fault: PyTorchFault,
+def compute_segmentation_final_metrics(
+    csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
     error_results, golden_results,
-    tolerance: float, num_classes: int,
+    num_classes: int, tolerance: float = 0.5,
 ):
     """
-    Note: tolerance is currently unused.
+    Note: tolerance is used as a mIOU threshold to determine if a corruption is SDC safe or critical.
     """
     error_predictions = error_results
     golden_predictions, ground_truth, other_info = golden_results
 
-    with open(error_report_path, 'w', newline='') as error_report_csv:
-        csv_writer = csv.writer(error_report_csv)
-        # write header
-        csv_writer.writerow(['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'mIOU', 'Precision', 'Recall'])
+    num_masked = num_sdc_safe = num_sdc_critical = 0
+    total_TP, total_FP, total_FN = 0
 
-        num_masked = num_sdc_critical = 0
-        current_index = 0
+    current_index = 0
 
-        for error_prediction, golden_prediction in zip(error_predictions, golden_predictions):
-            if (error_prediction != golden_prediction).any().item(): # if at any point the pixel prediction is different, the output was corrupted
+    for error_prediction, golden_prediction in zip(error_predictions, golden_predictions):
+        if (error_prediction != golden_prediction).any().item(): # if at any point the pixel prediction is different, the output was corrupted
+            miou = mIOU(error_prediction, golden_prediction, num_classes)
+            if miou > tolerance:
                 num_sdc_critical += 1
-                csv_fields = [module_name, error_number]
-                csv_fields.append(current_index) # add sample index
-                csv_fields.append(fault.spatial_pattern_name) # add spatial pattern
-                csv_fields.append(mIOU(error_prediction, golden_prediction, num_classes))
-
-                precision, recall = segmentation_precision_recall(error_prediction, golden_prediction, num_classes)
-                csv_fields.append(precision)
-                csv_fields.append(recall)
-
-                csv_writer.writerow(csv_fields)
-
-                current_index += 1
             else:
-                # MASKED
-                num_masked += 1
-    
-    # conventionally, every possible corruption is treated as sdc_critical
-    return num_masked, 0, num_sdc_critical
+                num_sdc_safe += 1
+
+            TP, FP, FN = evaluate_segmentation(error_prediction, golden_prediction, num_classes)
+
+            csv_fields = [module_name, error_number]
+            csv_fields.append(current_index) # add sample index
+            csv_fields.append(fault.spatial_pattern_name) # add spatial pattern
+            csv_fields.append(miou)
+            csv_fields.append(TP / (TP + FP)) # precision
+            csv_fields.append(TP / (TP + FN)) # recall
+            csv_writer.writerow(csv_fields)
+
+            total_TP += TP
+            total_FP += FP
+            total_FN += FN
+
+            current_index += 1
+        else:
+            # MASKED
+            num_masked += 1
+
+    # save metrics for the fault
+    metrics_dict[module_name][error_number]['Precision'] = total_TP / (total_TP + total_FP)
+    metrics_dict[module_name][error_number]['Recall'] = total_TP / (total_TP + total_FN)
+
+    return num_masked, num_sdc_safe, num_sdc_critical
 
 
-def compute_yolo_detection_final_metrics(*,
-    error_report_path: str, module_name: str, error_number: int, fault: PyTorchFault,
+def compute_yolo_detection_final_metrics(
+    csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
     error_results, golden_results,
     tolerance: float=0.5,
 ):
@@ -514,34 +496,40 @@ def compute_yolo_detection_final_metrics(*,
     error_predictions = error_results
     golden_predictions, ground_truth, other_info = golden_results
 
-    with open(error_report_path, 'w', newline='') as error_report_csv:
-        csv_writer = csv.writer(error_report_csv)
-        # write header
-        csv_writer.writerow(['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Precision', 'Recall'])
+    num_masked = num_sdc_safe = num_sdc_critical = 0
+    total_TP, total_FP, total_FN = 0
 
-        num_masked = num_sdc_critical = 0
-        current_index = 0
+    current_index = 0
 
-        for batch_prediction, batch_golden in zip(error_predictions, golden_predictions):
-            for single_prediction, single_golden in zip(batch_prediction, batch_golden):
-                TP, FP, FN = yolo_coco_evaluate_corrupted(single_golden, single_prediction, tolerance)
-                precision += TP / (TP + FP)
-                recall += TP / (TP + FN)
-                
-                if TP == len(single_golden):
-                    # all bounding boxes were matched closely enough: consider this masked
-                    num_masked += 1
+    for batch_prediction, batch_golden in zip(error_predictions, golden_predictions):
+        for single_prediction, single_golden in zip(batch_prediction, batch_golden):
+            TP, FP, FN = yolo_coco_evaluate_corrupted(single_golden, single_prediction, tolerance)
+            
+            if TP == len(single_golden):
+                # all bounding boxes were matched closely enough: consider this masked
+                num_masked += 1
+            else:
+                if TP > tolerance * len(single_golden):
+                    # a fraction of at least 'tolerance' of the boxes is correct: consider safe
+                    num_sdc_safe += 1
                 else:
-                    # at least one box was off: this is an SDC (consider critical)
                     num_sdc_critical += 1
-                    csv_fields = [module_name, error_number]
-                    csv_fields.append(current_index)
-                    csv_fields.append(fault.spatial_pattern_name)
-                    csv_fields.append(precision)
-                    csv_fields.append(recall)
-                    
-                    csv_writer.writerow(csv_fields)
 
-                    current_index += 1
+                csv_fields = [module_name, error_number]
+                csv_fields.append(current_index)
+                csv_fields.append(fault.spatial_pattern_name)
+                csv_fields.append(TP / (TP + FP)) # precision
+                csv_fields.append(TP / (TP + FN)) # recall
+                csv_writer.writerow(csv_fields)
 
-    return num_masked, 0, num_sdc_critical
+                total_TP += TP
+                total_FP += FP
+                total_FN += FN
+
+                current_index += 1
+
+    # save results for the fault
+    metrics_dict[module_name][error_number]['Precision'] = total_TP / (total_TP + total_FP)
+    metrics_dict[module_name][error_number]['Recall'] = total_TP / (total_TP + total_FN)
+
+    return num_masked, num_sdc_safe, num_sdc_critical

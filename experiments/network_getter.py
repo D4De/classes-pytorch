@@ -2,14 +2,18 @@ import os
 import torch
 
 from functools import partial
+from collections import namedtuple
 
-# available network/dataset combinations, along with the task they accomplish and the number of classes (or other info if not classification)
+NetworkInfo = namedtuple('NetworkInfo', ['task', 'num_classes', 'csv_header'])
+
+# available network/dataset combinations, along with the task they accomplish and the number of classes (or other info if not classification); the
+# final item is the csv header to use for the corrupted tensor report
 available = {
-    'resnet50_cifar10':    ('Classification', 10),
-    'alexnet_cifar10':     ('Classification', 10),
-    'mobilenetv2_gtsrb':   ('Classification', 43),
-    'yolov11_coco':        ('Detection', ),
-    'deeplabv3_oxfordpet': ('Segmentation', 3),
+    'resnet50_cifar10':    NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'alexnet_cifar10':     NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'mobilenetv2_gtsrb':   NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'yolov11_coco':        NetworkInfo('Detection', 80, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Precision', 'Recall']),
+    'deeplabv3_oxfordpet': NetworkInfo('Segmentation', 3, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'mIOU', 'Precision', 'Recall']),
 }
 
 def get_network_and_exp_functions(id: str, batch_size: int, device):
@@ -31,9 +35,9 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             from experiments.metrics import compute_classification_golden_run_metrics, compute_classification_final_metrics
             model = get_model(10, os.path.join(weights_dir, 'resnet50'))
             _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size)
-            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info[1], device=device)
-            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info[1])
-            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info[1], device=device)
+            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
+            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info.num_classes)
+            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
             error_run_metrics_fn = compute_classification_final_metrics
 
         case 'alexnet_cifar10':
@@ -44,9 +48,9 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             model = AlexNet()
             model.load_state_dict(torch.load(os.path.join(weights_dir, 'alexnet/fp32_alexnet_cifar10.pth')))
             _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size)
-            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info[1], device=device)
-            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info[1])
-            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info[1], device=device)
+            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
+            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info.num_classes)
+            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
             error_run_metrics_fn = compute_classification_final_metrics
 
         case 'mobilenetv2_gtsrb':
@@ -56,9 +60,9 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             from experiments.metrics import compute_classification_golden_run_metrics, compute_classification_final_metrics
             model = get_mobilenetv2_model(43, os.path.join(weights_dir, 'mobilenetv2', 'mobilenetv2_gtsrb_best.pth'))
             loader = getGTSRB(os.path.join(data_dir, 'gtsrb'), batch_size, 0)
-            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info[1], device=device)
-            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info[1])
-            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info[1], device=device)
+            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
+            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info.num_classes)
+            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
             error_run_metrics_fn = compute_classification_final_metrics
 
         case 'yolov11_coco':
@@ -81,9 +85,9 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             model = get_deeplabv3(os.path.join(weights_dir, 'deeplabv3', 'deeplabv3_pet_0.7500.pt'))
             loader = get_oxfordpet(os.path.join(data_dir, 'oxfordpet'), batch_size, 0)
             golden_run_fn = partial(segmentation_golden_run, model=model, dataloader=loader, device=device)
-            golden_run_metrics_fn = partial(compute_segmentation_golden_run_metrics, num_classes=network_info[1])
+            golden_run_metrics_fn = partial(compute_segmentation_golden_run_metrics, num_classes=network_info.num_classes)
             error_run_fn = partial(segmentation_error_run, model=model, dataloader=loader, device=device)
-            error_run_metrics_fn = partial(compute_segmentation_final_metrics, num_classes=network_info[1])
+            error_run_metrics_fn = partial(compute_segmentation_final_metrics, num_classes=network_info.num_classes)
 
     model.eval()
     model.to(device=device)

@@ -1,4 +1,5 @@
 import os
+import csv
 import yaml
 import torch
 
@@ -76,6 +77,7 @@ if __name__ == '__main__':
     exp_logger.info(f'Using device {device} as accelerator')
 
     # get network, dataset and type of task
+    exp_logger.info('Getting network, dataset and experiment functions')
     (
     model, dataloader, network_info,
     golden_run_fn, golden_run_metrics_fn,
@@ -84,7 +86,6 @@ if __name__ == '__main__':
     
 
     num_samples = len(dataloader) * dataloader.batch_size
-    task = network_info[0]
 
     exp_logger.info(f'Loaded model and weights')
     exp_logger.info(f'Loaded dataset - batch size is {config['batch_size']} - sample count is {num_samples}')
@@ -97,7 +98,8 @@ if __name__ == '__main__':
     }
 
     experiment_report_data['Model name'] = model_name
-    experiment_report_data['Task'] = task
+    experiment_report_data['Task'] = network_info.task
+    experiment_report_data['Num. classes'] = network_info.num_classes
 
     # collect a few other hyperparameters
     experiment_report_data['Experiment hyperparameters'] = {
@@ -168,22 +170,30 @@ if __name__ == '__main__':
         fault_list.generate_and_persist_fault_list(fault_list_path, num_faults_per_module)
     
     # load the fault list metadata
+    exp_logger.info('Loading fault list')
     fault_list_info = PyTorchFaultListMetadata.load_fault_list_info(fault_list_path)
 
     tolerance = config['tolerance']
 
 
-    # start injection
+    # START INJECTING
+    # these total metrics are meaningless in terms of individual SEUs, they are just for report completeness
     total_injected_errors = 0
     total_masked = 0
     total_sdc_safe = 0
     total_sdc_critical = 0
-    layer_statistics_dict = {} # this stores the above statistics per layer
 
+    layer_metrics_dict = {} # this will store the final metrics for each layer/fault injection pair
+
+    # prepare csv log to store individual results for corrupted tensors
+    error_report_csv = open(error_report_path, 'w', newline='')
+    csv_writer = csv.writer(error_report_csv)
+    csv_writer.writerow(network_info.csv_header)
 
     timer.start()
 
     for injectable_module_name in fault_list_info.injectable_layers:
+        layer_metrics_dict[injectable_module_name] = {}
         module = model.get_submodule(injectable_module_name)
 
         # build a fault dataset for each module, if a compatible fault generator is available
@@ -197,18 +207,15 @@ if __name__ == '__main__':
             pin_memory=True,
         )
 
-        # count error statistics for this module
-        num_masked = 0
-        num_sdc_safe = 0
-        num_sdc_critical = 0
-
         exp_logger.info(f'Starting injection in module {injectable_module_name} of type {type(module).__name__}')
 
         # iterate through the fault dataset and inject
         for fault_num, fault in enumerate(fault_list_loader):
+            layer_metrics_dict[injectable_module_name][fault_num] = {}
+
             exp_logger.info(f'Output Shape: {fault.corrupted_value_mask.shape}')
             exp_logger.info(f'Spatial Pattern: {fault.spatial_pattern_name}')
-        
+
             fault.to(device=device)
 
             # create the injection hook
@@ -222,7 +229,8 @@ if __name__ == '__main__':
 
             # compute metrics for run
             masked, sdc_safe, sdc_critical = error_run_metrics_fn(
-                error_report_path=error_report_path,
+                csv_writer=csv_writer,
+                metrics_dict=layer_metrics_dict,
                 module_name=injectable_module_name,
                 error_number=fault_num,
                 fault=fault,
@@ -231,30 +239,27 @@ if __name__ == '__main__':
                 tolerance=tolerance,
             )
 
-            num_masked += masked
-            num_sdc_safe += sdc_safe
-            num_sdc_critical += sdc_critical
+            # save fault results for this layer
+            layer_metrics_dict[injectable_module_name][fault_num]['Masked'] = masked 
+            layer_metrics_dict[injectable_module_name][fault_num]['SDC safe'] = sdc_safe
+            layer_metrics_dict[injectable_module_name][fault_num]['SDC critical'] = sdc_critical 
+
+            total_masked += masked
+            total_sdc_safe += sdc_safe
+            total_sdc_critical += sdc_critical
             
 
-        # injection done for the current module: update total statistics
         total_injected_errors += num_faults_per_module * num_samples
-        total_masked += num_masked
-        total_sdc_safe += num_sdc_safe
-        total_sdc_critical += num_sdc_critical
-        layer_statistics_dict[injectable_module_name] = {
-            'Masked': num_masked,
-            'SDC safe': num_sdc_safe,
-            'SDC critical': num_sdc_critical,
-        }
     
 
     # injection done for all modules
     timer.stop()
     injection_runtime = timer.get_duration_as_str()
 
-    total_sdc = total_sdc_safe + total_sdc_critical
-
     exp_logger.info(f'Error simulation done - took {injection_runtime}')
+
+    # finalize the csv report
+    error_report_csv.close()
 
     # add overall report data and save
     experiment_report_data['Error simulation data'] = {
@@ -262,7 +267,7 @@ if __name__ == '__main__':
         'Total number of masked errors': total_masked,
         'Total number of safe SDCs': total_sdc_safe,
         'Total number of critical SDCs': total_sdc_critical,
-        'Per-layer statistics': layer_statistics_dict,
+        'Per-layer statistics': layer_metrics_dict,
         'Error simulation runtime': injection_runtime,
     }
 
