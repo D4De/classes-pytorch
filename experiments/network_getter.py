@@ -21,7 +21,7 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
     
     # find corresponding network tuple among the available ones
     if id not in available:
-        raise ValueError(f'{id} is not an available combination. Choose from {available}.')
+        raise ValueError(f'{id} is not an available combination. Choose from {list(available.keys())}.')
     network_info = available[id]
 
     weights_dir = 'experiments/weights'

@@ -1,10 +1,11 @@
-import torch
+import yaml
 import torch.nn as nn
 
 import os
+import numpy as np
 
+from random import choice
 from typing import Callable, Dict, Literal, Mapping, Optional
-
 
 from classes.error_models.error_model import ErrorModel
 from classes.fault_generator.fault_generator import FaultGenerator
@@ -96,5 +97,110 @@ def create_module_to_generator_mapper(
                 return fault_generators[error_model_key]
 
         return None
+
+    return _mapper
+
+
+# --------------------------------------------------------------------------------------------------
+
+def interpolation_nearest_neighbor_L2(
+        module_parameters: list,
+        all_model_parameters: dict[str, list],
+        fault_generators,
+        logger,
+    ):
+    """
+    Selects the error model closest to the module by computing the L2 distance between hyperparameter lists and taking the minimum.
+    """
+    module_param_np = np.array(module_parameters)
+
+    min_distance = np.inf
+    best_model: str = None
+    exact_matches: list[str] = []
+
+    for model_name, parameters in all_model_parameters.items():
+        param_np = np.array(parameters)
+        distance_squared = np.sum(np.pow(module_param_np - param_np, 2))
+
+        if distance_squared == 0.0:
+            # found model that matches exactly
+            exact_matches.append(model_name)
+            min_distance = 0.0
+            continue
+
+        if distance_squared < min_distance:
+            # found new best model
+            min_distance = distance_squared
+            best_model = model_name
+
+    if exact_matches:
+        # some models that match the layer exactly are available: choose randomly
+        best_model = choice(exact_matches)
+
+    logger.info(f'Best error model is {best_model}.')
+    return fault_generators[best_model]
+
+
+def create_module_to_generator_mapper_dynamic(
+    model_folder_path: str,
+    logger,
+    model_parameters_filename='model_parameters.yaml',
+    generator_mapping: Mapping[str, PatternGenerator] = get_default_generators(),
+    layout="CHW",
+    interpolation_fn=interpolation_nearest_neighbor_L2,
+) -> ModuleToFaultGeneratorMapper:
+    """
+    As the default generator mapper function, this builds a function mapping a PyTorch module to a FaultGenerator.
+    The difference is that this function looks for a more precise match between a module and an error model: it uses the whole
+    module (specifically, its hyperparameters) and looks for a model obtained from a module with the same ones. If it can't find
+    a match, it interpolates existing models.
+
+    Note that this more complex matching procedure can only be performed after an initial network profiling to obtain the module's input
+    shape. Furthermore, the error model folder must contain a 'model_parameters.yaml' file mapping error model names to their
+    respective hyperparameters.
+    """
+    logger.info('Building module->fault generator mapping function...')
+
+    # look for the model parameters file
+    model_parameters_filepath = os.path.join(model_folder_path, model_parameters_filename)
+    if not os.path.exists(model_parameters_filepath):
+        raise FileNotFoundError(f'Model parameters file {model_parameters_filename} not found in model folder directory {model_folder_path}')
+    
+    logger.info(f'Loading model parameters yaml file {model_parameters_filepath}.')
+    with open(model_parameters_filepath) as f:
+        model_parameters = yaml.load(f, yaml.SafeLoader)
+
+    # look for the error models and create the fault generators from them
+    model_folder_filenames = os.listdir(model_folder_path)
+    model_folder_filenames.remove(model_parameters_filename)
+
+    fault_generators = {}
+    for file_name in model_folder_filenames:
+        file_path = os.path.join(model_folder_path, file_name)
+        error_model = ErrorModel.from_json_file(file_path)
+        operator_name = file_name[:-5]
+        fault_generators[operator_name] = FaultGenerator(
+            error_model, generator_mapping=generator_mapping, layout=layout
+        )
+        logger.info(f'Error model {operator_name} loaded.')
+    
+
+    def _mapper(module: nn.Module, input_shape):
+        if not isinstance(module, nn.Conv2d):
+            # not a convolution: skip
+            return None
+
+        # for now, assume the input shape to always be square
+        module_hyperparameters = [
+            module.in_channels,
+            module.out_channels,
+            input_shape[-1],
+            module.kernel_size[-1],
+            module.padding[-1]
+        ]
+        logger.info(f'Looking for best error model for network layer with hyperparameters {module_hyperparameters}.')
+
+        # look for error model that matches exactly or take the closest one
+        return interpolation_fn(module_hyperparameters, model_parameters, fault_generators, logger)
 
     return _mapper

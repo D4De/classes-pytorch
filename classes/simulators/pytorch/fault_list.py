@@ -1,28 +1,23 @@
-from dataclasses import dataclass
+import os
+import json
+import math
 import numpy as np
 import torch
 import torch.nn as nn
-import tarfile
-import json
 import shutil
-import warnings
+import tarfile
 
-from torch.utils.hooks import RemovableHandle
-
-import os
-import math
-
+from PIL import Image
+from tqdm import tqdm
+from dataclasses import dataclass
 from typing import Any, Callable, Generator, List, Mapping, Optional, Sequence, Tuple
 
-from tqdm import tqdm
-
-from classes.fault_generator.fault import FaultBatch
+from classes.fault_generator.fault_generator import FaultGenerator
 from classes.simulators.pytorch.error_model_mapper import (
     ModuleToFaultGeneratorMapper,
     create_module_to_generator_mapper,
 )
-from classes.simulators.pytorch.module_profiler import module_shape_profiler
-
+from classes.simulators.pytorch.module_profiler import module_shape_profiler, module_range_profiler
 
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -373,6 +368,266 @@ class PyTorchFaultList:
                     if pbar:
                         pbar.update(1)
             # Archive all files
+            with tarfile.TarFile(output_path, "w") as tarf:
+                tarf.add(
+                    os.path.join(temp_output_dir, "fault_list.json"),
+                    arcname="fault_list.json",
+                )
+                for module_folder in os.listdir(temp_output_dir):
+                    module_folder_path = os.path.join(temp_output_dir, module_folder)
+                    if os.path.isdir(module_folder_path):
+                        for batch_file in os.listdir(module_folder_path):
+                            batch_file_path = os.path.join(
+                                module_folder_path, batch_file
+                            )
+                            tarf.add(
+                                batch_file_path,
+                                arcname=os.path.join(module_folder, batch_file),
+                            )
+        finally:
+            # Delete in any case the temp directory, even when a crash happens
+            shutil.rmtree(temp_output_dir, ignore_errors=True)
+
+
+#------------------------------------------------------------
+# Rework of the fault list to account for multiple error models
+
+@dataclass
+class PyTorchFaultListDynamicMetadata:
+    input_shape: torch.Size | Sequence[int]
+    batch_dimension: Optional[int]
+    module_shapes: Mapping[str, Tuple[List[int], List[int]]]
+    n_faults_per_module: int
+    fault_batch_size: int
+    injectable_layers: Sequence[str]
+
+    @classmethod
+    def load_fault_list_info(cls, fault_list_path):
+        with tarfile.TarFile(fault_list_path, "r") as tarf:
+            member_file = tarf.extractfile("fault_list.json")
+            if not member_file:
+                raise FileNotFoundError(
+                    f"Fault List descriptor file fault_list.json not found in fault list archive"
+                )
+            try:
+                fault_list_info = json.load(member_file)
+
+                input_shape             = fault_list_info["input_shape"]
+                batch_dimension         = fault_list_info["batch_dimension"]
+                module_shapes           = fault_list_info["module_shapes"]
+                n_faults_per_module     = fault_list_info["n_faults_per_module"]
+                fault_batch_size        = fault_list_info["fault_batch_size"]
+                injectable_layers       = fault_list_info["injectable_layers"]
+                return cls(
+                    input_shape,
+                    batch_dimension,
+                    module_shapes,
+                    n_faults_per_module,
+                    fault_batch_size,
+                    injectable_layers,
+                )
+            finally:
+                member_file.close()
+
+    def to_dict(self) -> Mapping[str, Any]:
+        return {
+            "input_shape"           : self.input_shape,
+            "batch_dimension"       : self.batch_dimension,
+            "module_shapes"         : self.module_shapes,
+            "n_faults_per_module"   : self.n_faults_per_module,
+            "injectable_layers"     : self.injectable_layers,
+            "fault_batch_size"      : self.fault_batch_size,
+        }
+
+
+class PyTorchFaultListDynamic:
+    def __init__(
+        self,
+        network: nn.Module,
+        dataloader: torch.utils.data.DataLoader,
+        module_filter_fn: Callable[[nn.Module], bool],
+        module_to_fault_generator_fn: Callable[[nn.Module, Sequence[int]], FaultGenerator],
+        logger,
+        value_dtype : type = np.float32,
+        batch_axis: Optional[int] = 0,
+        device=DEFAULT_DEVICE,
+    ):
+        logger.info('Building fault list...')
+        self.network = network
+        
+        # get input sample and record the shape
+        for in_sample, _ in dataloader: break
+        if isinstance(in_sample, torch.Tensor):
+            self.input_shape = in_sample.shape
+        elif isinstance(in_sample, tuple[Image.Image]):
+            width, height = in_sample[0].size
+            self.input_shape = torch.Size([len(in_sample), 3, height, width]) # build input shape according to PIL Image shape
+        self.input_sample = in_sample
+        logger.info(f'Input shape for this network is {self.input_shape}')
+
+        self.module_filter_fn = module_filter_fn
+        self.module_to_fault_generator_fn = module_to_fault_generator_fn
+        self.value_dtype= value_dtype
+        self.batch_axis = batch_axis
+
+        logger.info('Profiling module input and output shapes...')
+        self.module_shapes = module_shape_profiler(
+            self.network,
+            self.input_sample,
+            module_filter_fn=self.module_filter_fn,
+            device=device
+        )
+        for module_name, shapes in self.module_shapes.items():
+            logger.info(f'Module {module_name}:\n' \
+                        f'\tOutput shape is {shapes[0]}\n' \
+                        f'\tInput shape is {shapes[1]}')
+
+        logger.info('Profiling module value ranges...')
+        self.module_ranges = module_range_profiler(network, dataloader, module_filter_fn=module_filter_fn, device=device)
+        for module_name, range in self.module_ranges.items():
+            logger.info(f'Module {module_name}:\n' \
+                        f'\tValue range is {range}')
+
+        self.injectable_layers = self.get_injectable_submodules_names()
+        self.num_injectable_layers = len(self.injectable_layers)
+        logger.info(f'Found a total of {self.num_injectable_layers} injectable layers in the network')
+
+
+    def get_injectable_submodules_names(self) -> List[str]:
+        names = []
+        for name, module in self.network.named_modules():
+            if self.module_filter_fn(module):
+                names.append(name)
+        return names
+
+
+    def module_fault_list_generator(
+        self, module_name: str, n_faults: int, fault_batch_size: int = 1
+    ):
+        module = self.network.get_submodule(module_name)
+        input_shape = self.module_shapes[module_name][1]
+        fault_generator = self.module_to_fault_generator_fn(module, input_shape)
+        if not fault_generator:
+            # No fault generator matched for this layer, return empty generator
+            return
+        
+        n_iters = int(math.ceil(n_faults / fault_batch_size))
+        for it in range(n_iters):
+            output_shape = list(self.module_shapes[module_name][0])
+            if self.batch_axis is not None:
+                output_shape.pop(self.batch_axis)
+
+            operating_range = self.module_ranges[module_name]
+
+            fault_batch = (
+                fault_generator.generate_batched_mask(
+                    output_shape, 
+                    fault_batch_size, 
+                    value_range=operating_range, 
+                    dtype=self.value_dtype)
+            )
+            yield module_name, it, fault_batch
+
+
+    def network_fault_list_generator(
+        self, n_faults: int, fault_batch_size: int = 1
+    ) -> Generator[Tuple, Any, None]:
+        for name, _ in self.network.named_modules():
+            yield from self.module_fault_list_generator(
+                name, n_faults, fault_batch_size
+            )
+
+
+    def generate_and_persist_fault_list(
+        self,
+        output_path: str,
+        n_faults_per_module: int,
+        logger,
+        fault_batch_size: int = 1,
+        show_progress=True,
+        exists_ok=True,
+        overwrite=False,
+    ):
+        logger.info('Started fault list generation...')
+
+        if n_faults_per_module % fault_batch_size != 0:
+            raise ValueError(
+                f"Number of faults per modules (n_faults) must be multiple of fault_batch size. Instead found {n_faults_per_module=} {fault_batch_size=}"
+            )
+
+        # Remove .tar from temp dir if present, add it to the output path if not present
+        if output_path.endswith(".tar"):
+            temp_output_dir = output_path[:-4] + "_tmp"
+        else:
+            temp_output_dir = output_path + "_tmp"
+            output_path = output_path + ".tar"
+
+        if os.path.exists(output_path):
+            if not exists_ok:
+                raise FileExistsError(f"FaultList already exists at {output_path}")
+            if not overwrite:
+                return
+
+        try:
+            os.makedirs(temp_output_dir, exist_ok=False)
+            count = 0
+            n_iters = (
+                int(math.ceil(n_faults_per_module / fault_batch_size))
+                * self.num_injectable_layers
+            )
+
+            pbar = None
+            if show_progress:
+                pbar = tqdm(total=n_iters)
+            # Create info object and be store it as the fault list descriptor
+            logger.info('Creating fault list metadata.')
+            info = PyTorchFaultListDynamicMetadata(
+                input_shape=list(self.input_shape),
+                batch_dimension=self.batch_axis,
+                module_shapes=self.module_shapes,
+                n_faults_per_module=n_faults_per_module,
+                fault_batch_size=fault_batch_size,
+                injectable_layers=self.injectable_layers,
+            )
+
+            with open(os.path.join(temp_output_dir, "fault_list.json"), "w") as f:
+                json.dump(info.to_dict(), f)
+
+            for module_name in self.injectable_layers:
+                # Generate faults lazily and save them to the temp directory
+                for (
+                    module_name,
+                    batch_num,
+                    fault_batch,
+                ) in self.module_fault_list_generator(
+                    module_name, n_faults_per_module, fault_batch_size
+                ):
+                    if pbar:
+                        pbar.set_description(f"Generating Faults")
+                        pbar.set_postfix_str(module_name)
+                    module_path = os.path.join(temp_output_dir, module_name)
+                    os.makedirs(module_path, exist_ok=True)
+
+                    file_name = os.path.join(
+                        module_path, f"{batch_num}_faults_{module_name}.npz"
+                    )
+                    npz_dict = {
+                        "masks": fault_batch.corrupted_value_mask,
+                        "values": fault_batch.corrupted_values,
+                        "values_index": fault_batch.corrupted_values_index,
+                        "sp_classes": fault_batch.spatial_pattern_names,
+                        "sp_parameters": fault_batch.sp_parameters,
+                        "module": np.asarray(module_name),
+                        "seq": np.int64(count),
+                    }
+                    np.savez_compressed(file_name, **npz_dict)
+                    count += 1
+
+                    if pbar:
+                        pbar.update(1)
+
+            # Archive all files
+            logger.info('Saving fault list to archive.')
             with tarfile.TarFile(output_path, "w") as tarf:
                 tarf.add(
                     os.path.join(temp_output_dir, "fault_list.json"),

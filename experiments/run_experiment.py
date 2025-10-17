@@ -3,10 +3,10 @@ import csv
 import yaml
 import torch
 
-from classes.simulators.pytorch.fault_list_datasets import FaultListFromTarFile
+from classes.simulators.pytorch.fault_list import PyTorchFaultListDynamic, PyTorchFaultListDynamicMetadata
 from classes.simulators.pytorch.simulator_hook import create_simulator_hook
-from classes.simulators.pytorch.error_model_mapper import create_module_to_generator_mapper
-from classes.simulators.pytorch.fault_list import PyTorchFaultList, PyTorchFaultListMetadata
+from classes.simulators.pytorch.error_model_mapper import create_module_to_generator_mapper_dynamic
+from classes.simulators.pytorch.fault_list_datasets import FaultListFromTarFileDynamic
 
 import experiments.logger as logger
 import experiments.experiment_utils as utils
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     #------------------------------------------------------------
     # initial setup
 
-    experiment_dir, configuration_name = parse_args()
+    experiment_dir, configuration_name, regenerate_faults = parse_args()
 
     # check if experiment directory exists
     try:
@@ -109,16 +109,16 @@ if __name__ == '__main__':
     }
     #------------------------------------------------------------
     # AN OVERVIEW OF THE EXPERIMENT PROCESS
-    # 1) First, a golden run with no layer corruption is performed. The results of this first run, i.e. the output tensors (or analogous classes) and
+    # 1) The fault list for the current experiment is loaded or generated if not available.
+    #
+    # 2) A golden run with no layer corruption is performed. The results of this first run, i.e. the output tensors (or analogous classes) and
     # the corresponding labels/targets, are collected and saved to `golden_results`, which in general is a tuple that will be appropriately unpacked
     # by the functions associated to the network under test, as provided by `network_getter.py`.
     #
-    # 2) A golden run postprocessing function is called. This function takes the intermediate outputs of step 1 and processes them in some way.
+    # 3) A golden run postprocessing function is called. This function takes the intermediate outputs of step 1 and processes them in some way.
     # In the classification case, for example, the rankings corresponding to the golden scores are calculated, as well as metrics such as accuracy.
     # If some intermediate results need to be saved for later, the postprocessing function returns them, so that they can be packed together with
-    # the previous results and used later.
-    #
-    # 3) The fault list for the current experiment is loaded or generated if not available.
+    # the previous results and used later. 
     #
     # 4) An error run is performed by injecting one fault at a time into the network and running the entire dataset through it.
     # The results of this run are saved as `error_results` and will again be unpacked as needed later.
@@ -126,6 +126,37 @@ if __name__ == '__main__':
     # 5) An error run postprocessing function is called. The function takes the golden results and the error ones, computes the appropriate
     # metrics for each injection run and saves them, possibly along with other metadata. Regardless of the function implementation, it should
     # always return the number of masked, sdc safe and sdc critical results for an injection.
+    
+    # fault generation
+    fault_list_path = config['fault_list_path']
+    num_faults_per_module = config['num_faults_per_module']
+
+    # if the fault list does not exist or regeneration was requested, create it now
+    if regenerate_faults or not os.path.exists(fault_list_path):
+        exp_logger.info(f'Fault List {fault_list_path} does not exist in the current folder or regeneration was requested.' \
+            f' Generating a new one with {num_faults_per_module} faults per network layer.')
+
+        module_to_generator_mapping = create_module_to_generator_mapper_dynamic(
+            model_folder_path=config['error_models_path'],
+            logger=exp_logger,
+        )
+        
+        fault_list = PyTorchFaultListDynamic(
+            model, 
+            dataloader,
+            module_filter_fn = lambda x: isinstance(x, torch.nn.Conv2d),
+            module_to_fault_generator_fn=module_to_generator_mapping,
+            device=device,
+            logger=exp_logger,
+        )
+        fault_list.generate_and_persist_fault_list(fault_list_path, num_faults_per_module, logger=exp_logger)
+    
+    # load the fault list metadata
+    exp_logger.info('Loading fault list')
+    fault_list_info = PyTorchFaultListDynamicMetadata.load_fault_list_info(fault_list_path)
+
+    tolerance = config['tolerance']
+    
     #------------------------------------------------------------
     # golden run
 
@@ -151,32 +182,6 @@ if __name__ == '__main__':
 
     #------------------------------------------------------------
     # error simulation
-
-    fault_list_path = config['fault_list_path']
-    num_faults_per_module = config['num_faults_per_module']
-
-    # if the fault list does not exist, create it now
-    if not os.path.exists(fault_list_path):
-        exp_logger.info(f'Fault List {fault_list_path} does not exist in the current folder.' \
-            f' Generating a new one with {num_faults_per_module} faults per network layer.')
-
-        module_to_generator_mapping = create_module_to_generator_mapper(
-            model_folder_path=config['error_models_path'],
-            conv_strategy='conv_gemm'
-        )
-
-        for sample_images, _ in dataloader: break # get sample
-        fault_list = PyTorchFaultList(model, input_data=sample_images, module_to_fault_generator_fn=module_to_generator_mapping)
-        fault_list.generate_and_persist_fault_list(fault_list_path, num_faults_per_module)
-    
-    # load the fault list metadata
-    exp_logger.info('Loading fault list')
-    fault_list_info = PyTorchFaultListMetadata.load_fault_list_info(fault_list_path)
-
-    tolerance = config['tolerance']
-
-
-    # START INJECTING
     # these total metrics are meaningless in terms of individual SEUs, they are just for report completeness
     total_injected_errors = 0
     total_masked = 0
@@ -197,7 +202,7 @@ if __name__ == '__main__':
         module = model.get_submodule(injectable_module_name)
 
         # build a fault dataset for each module, if a compatible fault generator is available
-        fault_list_dataset = FaultListFromTarFile(
+        fault_list_dataset = FaultListFromTarFileDynamic(
             fault_list_path, injectable_module_name
         )
         fault_list_loader = torch.utils.data.DataLoader(

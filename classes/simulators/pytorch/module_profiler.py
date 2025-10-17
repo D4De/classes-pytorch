@@ -1,39 +1,34 @@
-from typing import Callable, List, Mapping, Optional, Sequence, Tuple
-
-import torch
-import torch.nn as nn
-import torch.autograd.profiler as profiler
-from torch.utils.hooks import RemovableHandle
-from torch.utils.data import DataLoader
-
-from collections import defaultdict
-from operator import itemgetter
-
-from tqdm import tqdm
-
-import numpy as np
-import json
-import csv
 import os
 import gc
+import csv
+import json
+import torch
+import torch.nn as nn
+import numpy as np
+
+from PIL import Image
+from tqdm import tqdm
+from operator import itemgetter
+from collections import defaultdict
+from torch.utils.data import DataLoader
+from torch.utils.hooks import RemovableHandle
+from typing import Callable, List, Mapping, Optional, Sequence, Tuple
 
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-
 def module_shape_profiler(
     module: nn.Module,
-    input_data: Optional[torch.Tensor] = None,
-    input_shape: Optional[Sequence[int]] = None,
+    input_data: torch.Tensor | tuple[Image.Image] | torch.Size | list[int],
+    module_filter_fn: Callable[[nn.Module], bool] = lambda module: True,
     device=DEFAULT_DEVICE,
-    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True,
-    profile_input_shapes = False
-) -> Mapping[str, List[int]]:
+) -> Mapping[str, Tuple[List[int], List[int]]]:
     """
-    Executes a forward pass in a Module to determine the input or output shapes of all
+    Executes a forward pass in a Module to determine the input and output shapes of all
     the children modules at every nesting level.
 
-    The function takes in input the module and alternatively one
-    of `input_data` and `input_shape`. And returns a dictionary containing all the shapes of submodules.
+    The function takes in input the module and either a PyTorch tensor (batch), a tensor size used to build a dummy input tensor,
+    or a tuple of PIL images. 
+    It returns a dictionary containing all the shapes of submodules.
 
     VERY IMPORTANT NOTE: Each layer in the module MUST not be reused multiple time.
     EACH operator defined in init MUST BE APPLIED ONLY ONCE IN THE WHOLE NETWORK
@@ -46,25 +41,16 @@ def module_shape_profiler(
     If there are two layers with the same name module_shape_profiler() returns a bad output and an error will
     be raised during error simulation.
 
-
     Args
     ----
-    * `module : nn.Module`. The module to be profiled
-    * `input_data : Tensor | None`. A dummy input accepted from the module
-    * `input_shape : Tensor | None`. The shape of an input tensor accepted by the network. This must be specified only if `input_data` is not specified.
-    * `device`: The torch device where the test inference is executed. If not specified defaults to cuda if available, otherwise cpu. Note that the model
-                will be moved to device as a side-effect of this function.
-    * `module_filter_fn : Callable[[str, nn.Module], bool]`. A function that takes in input the module name and the module itself and returns a boolean that says
+    * `module : the module to be profiled (can be an entire network)
+    * `input_data : a dummy input directly used to profile or the desired size of the input
+    * `module_filter_fn : a function that takes in input the module name and the module itself and returns a boolean that says
                 whether the profiling should happen in that layer. If not specified, the output shape of all modules will be profiled.
-    * `profile_input_shapes : boolean`. If False the shape profiled will be output shapes. If True, the function profiles modules input shapes. Defaults to False.
     Returns
     ---
-    A dictionary that has the submodules fully qualified names as keys and their corresponding input or output shapes
-    as the corresponding values.
-
-    Raises
-    ---
-    * `ValueError` if both or none of `input_shape` and `input_data` are specified.
+    A dictionary that has the submodules' fully qualified names as keys and their corresponding output and input shapes as values.
+    The values are tuples of 2 elements; the first element is the output shape, the second is the input shape.
     """
 
     shape_index = {}
@@ -75,35 +61,26 @@ def module_shape_profiler(
     # * does not modify the output (returning it as given)
     def _make_shape_profile_hook(name):
         def _shape_profile_hook(module, input, output):
-            if profile_input_shapes:
-                if isinstance(input[0], torch.Tensor):
-                    shape_index[name] = input[0].size()
-            else:
-                if isinstance(output, torch.Tensor):
-                    shape_index[name] = output.size()
+            output_shape = output.size() if isinstance(output, torch.Tensor) else None
+            input_shape = input[0].size() if isinstance(input[0], torch.Tensor) else None
+            shape_index[name] = (output_shape, input_shape)
             # Do not modify the output
             return output
 
         return _shape_profile_hook
 
-    if input_data is not None and input_shape is None:
-        input_shape = input_data.shape
+    if isinstance(input_data, (torch.Size, list)):
+        # build a dummy input tensor
+        input_data = torch.normal(0.0, 1.0, input_data)
+    
+    if isinstance(input_data, torch.Tensor):
         input_data = input_data.to(device)
-    elif input_data is None and input_shape is not None:
-        input_data = torch.normal(0.0, 1.0, input_shape).to(device)
-    else:
-        raise ValueError(
-            "One and only one between input_data and input_shape must be specified."
-        )
 
-    module.to(device)
-
-    module.eval()
     # Store the handles to remove the hook after the profiling
     hook_handles: List[RemovableHandle] = []
     try:    
         for name, mod in module.named_modules():
-            if module_filter_fn(name, mod):
+            if module_filter_fn(mod):
                 handle = mod.register_forward_hook(_make_shape_profile_hook(name))
                 hook_handles.append(handle)
         with torch.no_grad():
@@ -119,18 +96,17 @@ def module_shape_profiler(
 def module_range_profiler(
     network: nn.Module,
     dataloader: DataLoader,
-    network_input_fn: Callable = itemgetter(0),
     torch_dtype=torch.float32,
     np_output_dtype=np.float32,
-    module_filter_fn: Callable[[str, nn.Module], bool] = lambda module, name: True,
+    module_filter_fn: Callable[[nn.Module], bool] = lambda module: True,
     device=DEFAULT_DEVICE,
 ) -> Mapping[str, np.ndarray]:
 
     min_value_per_module = defaultdict(
-        lambda: torch.tensor(np.infty, dtype=torch_dtype).to(device)
+        lambda: torch.tensor(np.inf, dtype=torch_dtype).to(device)
     )
     max_value_per_module = defaultdict(
-        lambda: torch.tensor(-np.infty, dtype=torch_dtype).to(device)
+        lambda: torch.tensor(-np.inf, dtype=torch_dtype).to(device)
     )
 
     def _make_range_profile_hook(module_name):
@@ -146,23 +122,20 @@ def module_range_profiler(
 
         return _range_profile_hook
 
-    network.to(device)
-
     hook_handles: List[RemovableHandle] = []
-
     profiled_modules_names = []
 
     try:
         for name, module in network.named_modules():
-            if module_filter_fn(name, module):
+            if module_filter_fn(module):
                 profiled_modules_names.append(name)
                 handle = module.register_forward_hook(_make_range_profile_hook(name))
                 hook_handles.append(handle)
         with torch.no_grad():
-            for data in tqdm(dataloader, desc="Range Profiling"):
-                network_input = network_input_fn(data)
-                network_input = network_input.to(device)
-                output = network(network_input)
+            for dummy_input, _ in tqdm(dataloader, desc="Profiling module ranges"):
+                if isinstance(dummy_input, torch.Tensor):
+                    dummy_input = dummy_input.to(device)
+                network(dummy_input)
 
     finally:
         for handle in hook_handles:
@@ -289,6 +262,7 @@ def profile_module_execution_time(
         raise RuntimeError('No modules profiled')
     return runtimes_ms
 
+
 def generate_and_persist_execution_time_profile(
     file_path: str,
     module : nn.Module,
@@ -330,4 +304,3 @@ def generate_and_persist_execution_time_profile(
                 writer.writerow([mod, avg_time_ms, std_dev_ms])
         return profile
     
-

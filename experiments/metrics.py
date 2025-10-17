@@ -368,14 +368,29 @@ def compute_classification_final_metrics(
     error_results, golden_results,
     tolerance: float, 
 ):
-    scores, rankings = error_results
-    golden_scores, golden_labels, golden_rankings = golden_results
-
     # REMINDER: the CSV fields are
     # ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present',
     # 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']
+
+    scores, rankings = error_results
+    golden_scores, golden_labels, golden_rankings = golden_results
+
+    num_samples = scores.shape[0]
     num_masked = num_sdc_safe = num_sdc_critical = 0
     total_tau = total_rbo = 0.0
+
+    # TODO: use vectorized torch methods to optimize the metrics calculation
+    # # compare golden and corrupted results
+    # erroneous_values_mask = (torch.abs(torch.subtract(scores, golden_scores)) > tolerance) # True where an element differs from the golden more than tolerance
+    # corrupted_rows_mask = erroneous_values_mask.any(dim=-1).squeeze() # True for corrupted rows
+
+    # num_sdc = corrupted_rows_mask.numel()
+    # num_masked = num_samples - num_sdc
+
+    # # compare corrupted rankings and corresponding golden ones
+    # corrupted_rankings = rankings[corrupted_rows_mask]
+    # golden_counterpart_rankings = golden_rankings[corrupted_rows_mask]
+
 
     # compare row by row
     for i, output_row in enumerate(scores):
@@ -428,7 +443,6 @@ def compute_classification_final_metrics(
             num_masked += 1
         
         # save average total statistics for this fault
-        num_samples = scores.shape[0]
         metrics_dict[module_name][error_number]['Average Kendall Tau'] = total_tau / num_samples
         metrics_dict[module_name][error_number]['Average RBO'] = total_rbo / num_samples
     
