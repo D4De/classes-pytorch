@@ -369,82 +369,85 @@ def compute_classification_final_metrics(
     tolerance: float, 
 ):
     # REMINDER: the CSV fields are
-    # ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present',
+    # ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted',
     # 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']
+    csv_fields = [module_name, error_number, fault.spatial_pattern_name]
 
     scores, rankings = error_results
     golden_scores, golden_labels, golden_rankings = golden_results
 
     num_samples = scores.shape[0]
-    num_masked = num_sdc_safe = num_sdc_critical = 0
-    total_tau = total_rbo = 0.0
 
-    # TODO: use vectorized torch methods to optimize the metrics calculation
-    # # compare golden and corrupted results
-    # erroneous_values_mask = (torch.abs(torch.subtract(scores, golden_scores)) > tolerance) # True where an element differs from the golden more than tolerance
-    # corrupted_rows_mask = erroneous_values_mask.any(dim=-1).squeeze() # True for corrupted rows
+    # compare golden and corrupted results
+    erroneous_values_mask = (torch.abs(torch.subtract(scores, golden_scores)) > tolerance) # True where an element differs from the golden more than tolerance
+    corrupted_rows_mask = erroneous_values_mask.any(dim=-1).squeeze() # True for corrupted rows
 
-    # num_sdc = corrupted_rows_mask.numel()
-    # num_masked = num_samples - num_sdc
+    num_sdc = corrupted_rows_mask.numel()
+    num_masked = num_samples - num_sdc
 
-    # # compare corrupted rankings and corresponding golden ones
-    # corrupted_rankings = rankings[corrupted_rows_mask]
-    # golden_counterpart_rankings = golden_rankings[corrupted_rows_mask]
+    # compare corrupted rankings and corresponding golden ones
+    corrupted_rankings = rankings[corrupted_rows_mask]
+    golden_counterpart_rankings = golden_rankings[corrupted_rows_mask]
+    top1_corrupted = corrupted_rankings[:, 0] # first column = top1 index
+    top1_golden = golden_counterpart_rankings[:, 0]
 
+    # check where the top class is different
+    different_top1_mask = top1_corrupted.not_equal(top1_golden)
 
-    # compare row by row
-    for i, output_row in enumerate(scores):
-        csv_fields = [module_name, error_number]
-        golden_row = golden_scores[i]
+    # get scores corresponding to the top classes
+    top1_corrupted_scores = scores[corrupted_rows_mask, top1_corrupted]
+    top1_golden_scores = golden_scores[corrupted_rows_mask, top1_golden]
+    # if the top scores differ by more than 5%, we have a critical SDC
+    wrong_scores_mask = (torch.abs(torch.subtract(top1_corrupted_scores, top1_golden_scores)) > 0.05)
+    
+    # if either of the previous conditions hold, we have a critical SDC, otherwise it's a safe one
+    sdc_critical_mask = different_top1_mask.logical_or(wrong_scores_mask)
+    num_sdc_critical = sdc_critical_mask.count_nonzero()
+    num_sdc_safe = num_sdc - num_sdc_critical
 
-        error = torch.abs(output_row - golden_row) # subtract the two rows
-        error = (error >= tolerance).squeeze() # find where the difference is greater than the tolerance
+    # build csv row for each sdc
+    def _write_csv_rows(corrupted: torch.Tensor, golden: torch.Tensor, fields: list):
+        rows = []
+        tau_total = rbo_total = 0.0
 
-        if error.any().item(): # if at any point the difference is greater than the tolerance, the row is corrupted
-            csv_fields.append(i) # add sample index
-            csv_fields.append(fault.spatial_pattern_name) # add spatial pattern
+        for corrupted_row, golden_row in zip(corrupted, golden):
+            tau = kendalltau(corrupted_row.clone().cpu(), golden_row.clone().cpu()).statistic.item()
+            rbo = rank_biased_overlap(corrupted_row, golden_row)
+            tau_total += tau
+            rbo_total += rbo
 
-            rankings_row = rankings[i]
-            golden_rankings_row = golden_rankings[i]
+            rest_rankings = str(corrupted_row[1:].tolist()).replace(',', ' |')
+            rest_golden_rankings = str(golden_row[1:].tolist()).replace(',', ' |')
 
-            csv_fields.append(golden_rankings_row[0].item()) # add golden topclass
-            csv_fields.append(rankings_row[0].item()) # add corrupted topclass
-
-            # check if all ranking values match
-            rankings_are_equal = torch.all(torch.eq(rankings_row, golden_rankings_row), -1).squeeze().item()
-            if rankings_are_equal:
-                # SDC SAFE
-                num_sdc_safe += 1
-                ranking_deviation_field = 'No'
-                tau = 1.0
-                rbo = 1.0
-            else:
-                # SDC CRITICAL
-                num_sdc_critical += 1
-                ranking_deviation_field = 'Yes'
-                tau = kendalltau(rankings_row.cpu(), golden_rankings_row.cpu()).statistic.item()
-                rbo = rank_biased_overlap(rankings_row, golden_rankings_row)
-
-            csv_fields.append(ranking_deviation_field)
-            csv_fields.append(tau)
-            csv_fields.append(rbo)
-
-            total_tau += tau
-            total_rbo += rbo
-
-            # get the remaining parts of the two rankings
-            rest_rankings = str(rankings_row[1:].tolist()).replace(',', ' |')
-            rest_golden_rankings = str(golden_rankings_row[1:].tolist()).replace(',', ' |')
-            csv_fields.append(rest_golden_rankings)
-            csv_fields.append(rest_rankings)
-            csv_writer.writerow(csv_fields)
-        else:
-            # MASKED
-            num_masked += 1
+            rows.append(fields + [
+                golden_row[0].item(), # golden top
+                corrupted_row[0].item(), # corrupted top
+                tau,
+                rbo,
+                rest_golden_rankings,
+                rest_rankings,
+            ])
         
-        # save average total statistics for this fault
-        metrics_dict[module_name][error_number]['Average Kendall Tau'] = total_tau / num_samples
-        metrics_dict[module_name][error_number]['Average RBO'] = total_rbo / num_samples
+        csv_writer.writerows(rows)
+        return tau_total, rbo_total
+    
+    
+    tau_critical, rbo_critical = _write_csv_rows(
+        corrupted_rankings[sdc_critical_mask],
+        golden_counterpart_rankings[sdc_critical_mask],
+        csv_fields + ['False']
+    )
+    tau_safe, rbo_safe = _write_csv_rows(
+        corrupted_rankings[~sdc_critical_mask],
+        golden_counterpart_rankings[~sdc_critical_mask],
+        csv_fields + ['True']
+    )
+
+    # save average total statistics for this fault
+    metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-safe)'] = tau_safe / num_sdc_safe
+    metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-critical)'] = tau_critical / num_sdc_critical
+    metrics_dict[module_name][error_number]['Average RBO (SDC-safe)'] = rbo_safe / num_sdc_safe
+    metrics_dict[module_name][error_number]['Average RBO (SDC-critical)'] = rbo_critical / num_sdc_critical
     
     return num_masked, num_sdc_safe, num_sdc_critical
 

@@ -4,7 +4,6 @@ import torch.nn as nn
 import os
 import numpy as np
 
-from random import choice
 from typing import Callable, Dict, Literal, Mapping, Optional
 
 from classes.error_models.error_model import ErrorModel
@@ -112,11 +111,12 @@ def interpolation_nearest_neighbor_L2(
     """
     Selects the error model closest to the module by computing the L2 distance between hyperparameter lists and taking the minimum.
     """
+    # normalize the module's parameters
+    module_parameters = [(x - min(module_parameters))/(max(module_parameters) - min(module_parameters)) for x in module_parameters]
     module_param_np = np.array(module_parameters)
 
     min_distance = np.inf
     best_model: str = None
-    exact_matches: list[str] = []
 
     for model_name, parameters in all_model_parameters.items():
         param_np = np.array(parameters)
@@ -124,18 +124,13 @@ def interpolation_nearest_neighbor_L2(
 
         if distance_squared == 0.0:
             # found model that matches exactly
-            exact_matches.append(model_name)
-            min_distance = 0.0
-            continue
+            logger.info(f'Found exact match for error model: {model_name}')
+            return fault_generators[model_name]
 
         if distance_squared < min_distance:
             # found new best model
             min_distance = distance_squared
             best_model = model_name
-
-    if exact_matches:
-        # some models that match the layer exactly are available: choose randomly
-        best_model = choice(exact_matches)
 
     logger.info(f'Best error model is {best_model}.')
     return fault_generators[best_model]
@@ -169,6 +164,11 @@ def create_module_to_generator_mapper_dynamic(
     logger.info(f'Loading model parameters yaml file {model_parameters_filepath}.')
     with open(model_parameters_filepath) as f:
         model_parameters = yaml.load(f, yaml.SafeLoader)
+
+    # normalize the model hyperparameters
+    for modelname, hyper_set in model_parameters.items():
+        normalized_set = [(x - min(hyper_set))/(max(hyper_set) - min(hyper_set)) for x in hyper_set]
+        model_parameters[modelname] = normalized_set
 
     # look for the error models and create the fault generators from them
     model_folder_filenames = os.listdir(model_folder_path)
