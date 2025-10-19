@@ -14,7 +14,7 @@ data/*
 .spyproject
 
 experiments/dataset_data/**
-experiments/exp*
+experiments/exp_*
 **/*Zone.Identifier
 **/*.pth
 **/*.pt
