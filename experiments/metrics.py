@@ -379,15 +379,15 @@ def compute_classification_final_metrics(
     num_samples = scores.shape[0]
 
     # compare golden and corrupted results
-    erroneous_values_mask = (torch.abs(torch.subtract(scores, golden_scores)) > tolerance) # True where an element differs from the golden more than tolerance
+    erroneous_values_mask: torch.Tensor = (torch.abs(torch.subtract(scores, golden_scores)) > tolerance) # True where an element differs from the golden more than tolerance
     corrupted_rows_mask = erroneous_values_mask.any(dim=-1).squeeze() # True for corrupted rows
 
-    num_sdc = corrupted_rows_mask.numel()
-    num_masked = num_samples - num_sdc
+    num_sdc: int = corrupted_rows_mask.count_nonzero().item()
+    num_masked: int = num_samples - num_sdc
 
     # compare corrupted rankings and corresponding golden ones
-    corrupted_rankings = rankings[corrupted_rows_mask]
-    golden_counterpart_rankings = golden_rankings[corrupted_rows_mask]
+    corrupted_rankings: torch.Tensor = rankings[corrupted_rows_mask]
+    golden_counterpart_rankings: torch.Tensor = golden_rankings[corrupted_rows_mask]
     top1_corrupted = corrupted_rankings[:, 0] # first column = top1 index
     top1_golden = golden_counterpart_rankings[:, 0]
 
@@ -402,8 +402,8 @@ def compute_classification_final_metrics(
     
     # if either of the previous conditions hold, we have a critical SDC, otherwise it's a safe one
     sdc_critical_mask = different_top1_mask.logical_or(wrong_scores_mask)
-    num_sdc_critical = sdc_critical_mask.count_nonzero()
-    num_sdc_safe = num_sdc - num_sdc_critical
+    num_sdc_critical: int = sdc_critical_mask.count_nonzero().item()
+    num_sdc_safe: int = num_sdc - num_sdc_critical
 
     # build csv row for each sdc
     def _write_csv_rows(corrupted: torch.Tensor, golden: torch.Tensor, fields: list):
@@ -444,10 +444,10 @@ def compute_classification_final_metrics(
     )
 
     # save average total statistics for this fault
-    metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-safe)'] = tau_safe / num_sdc_safe
-    metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-critical)'] = tau_critical / num_sdc_critical
-    metrics_dict[module_name][error_number]['Average RBO (SDC-safe)'] = rbo_safe / num_sdc_safe
-    metrics_dict[module_name][error_number]['Average RBO (SDC-critical)'] = rbo_critical / num_sdc_critical
+    metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-safe)'] = (tau_safe / num_sdc_safe) if num_sdc_safe > 0 else 0.0
+    metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-critical)'] = (tau_critical / num_sdc_critical) if num_sdc_critical > 0 else 0.0
+    metrics_dict[module_name][error_number]['Average RBO (SDC-safe)'] = (rbo_safe / num_sdc_safe) if num_sdc_safe > 0 else 0.0
+    metrics_dict[module_name][error_number]['Average RBO (SDC-critical)'] = (rbo_critical / num_sdc_critical) if num_sdc_critical > 0 else 0.0
     
     return num_masked, num_sdc_safe, num_sdc_critical
 
