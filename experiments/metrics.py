@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 
+from threading import Thread, Lock
 from scipy.stats import kendalltau
 from ultralytics.engine.results import Results
 
@@ -366,7 +367,7 @@ def compute_yolo_detection_golden_run_metrics(golden_results, logger, report_dat
 def compute_classification_final_metrics(
     csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
     error_results, golden_results,
-    tolerance: float, 
+    tolerance: float, num_threads: int = 4,
 ):
     # REMINDER: the CSV fields are
     # ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted',
@@ -405,13 +406,26 @@ def compute_classification_final_metrics(
     num_sdc_critical: int = sdc_critical_mask.count_nonzero().item()
     num_sdc_safe: int = num_sdc - num_sdc_critical
 
-    # build csv row for each sdc
-    def _write_csv_rows(corrupted: torch.Tensor, golden: torch.Tensor, fields: list):
-        rows = []
-        tau_total = rbo_total = 0.0
 
-        for corrupted_row, golden_row in zip(corrupted, golden):
-            tau = kendalltau(corrupted_row.clone().cpu(), golden_row.clone().cpu()).statistic.item()
+    # set up for parallel computation of single row metrics and csv writing
+    thread_lock = Lock()
+    thread_metrics_list: list[tuple] = [] # stores final thread metrics as tuples (tau, rbo)
+
+    def _thread_compute_row_metrics(
+            corrupted: torch.Tensor, golden: torch.Tensor, csv_fields: list,
+            thread_id: int
+    ):
+        num_rows = corrupted.shape[0]
+        current_row = thread_id
+
+        tau_total = rbo_total = 0.0
+        csv_rows = []
+
+        while current_row < num_rows:
+            corrupted_row = corrupted[current_row]
+            golden_row = golden[current_row]
+
+            tau = kendalltau(corrupted_row, golden_row).statistic.item()
             rbo = rank_biased_overlap(corrupted_row, golden_row)
             tau_total += tau
             rbo_total += rbo
@@ -419,7 +433,7 @@ def compute_classification_final_metrics(
             rest_rankings = str(corrupted_row[1:].tolist()).replace(',', ' |')
             rest_golden_rankings = str(golden_row[1:].tolist()).replace(',', ' |')
 
-            rows.append(fields + [
+            csv_rows.append(csv_fields + [
                 golden_row[0].item(), # golden top
                 corrupted_row[0].item(), # corrupted top
                 tau,
@@ -427,21 +441,92 @@ def compute_classification_final_metrics(
                 rest_golden_rankings,
                 rest_rankings,
             ])
+
+            current_row += num_threads
         
-        csv_writer.writerows(rows)
-        return tau_total, rbo_total
+        # write csv rows and update metrics totals
+        thread_lock.acquire()
+        csv_writer.writerows(csv_rows)
+        thread_metrics_list.append((tau_total, rbo_total))
+        thread_lock.release()
+            
+
+    tau_safe = tau_critical = rbo_safe = rbo_critical = 0.0
+    # critical
+    threads: list[Thread] = []
+
+    sdc_critical_rows = corrupted_rankings[sdc_critical_mask].cpu()
+    golden_critical_rows = golden_counterpart_rankings[sdc_critical_mask].cpu()
+    for thread_id in range(num_threads):
+        t = Thread(target = _thread_compute_row_metrics, args=(
+            sdc_critical_rows, golden_critical_rows, csv_fields + ['False'], thread_id,
+        ))
+        threads.append(t)
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    # collect metrics
+    for metrics_tuple in thread_metrics_list:
+        tau_critical += metrics_tuple[0]
+        rbo_critical += metrics_tuple[1]
+
+    # safe
+    threads.clear()
+
+    sdc_safe_rows = corrupted_rankings[~sdc_critical_mask].cpu()
+    golden_safe_rows = golden_counterpart_rankings[~sdc_critical_mask].cpu()
+    for thread_id in range(num_threads):
+        t = Thread(target = _thread_compute_row_metrics, args=(
+            sdc_safe_rows, golden_safe_rows, csv_fields + ['True'], thread_id,
+        ))
+        threads.append(t)
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    # collect metrics
+    for metrics_tuple in thread_metrics_list:
+        tau_safe += metrics_tuple[0]
+        rbo_safe += metrics_tuple[1]
+
+    # build csv row for each sdc
+    # def _write_csv_rows(corrupted: torch.Tensor, golden: torch.Tensor, fields: list):
+    #     rows = []
+    #     tau_total = rbo_total = 0.0
+
+    #     for corrupted_row, golden_row in zip(corrupted, golden):
+    #         tau = kendalltau(corrupted_row.clone().cpu(), golden_row.clone().cpu()).statistic.item()
+    #         rbo = rank_biased_overlap(corrupted_row, golden_row)
+    #         tau_total += tau
+    #         rbo_total += rbo
+
+    #         rest_rankings = str(corrupted_row[1:].tolist()).replace(',', ' |')
+    #         rest_golden_rankings = str(golden_row[1:].tolist()).replace(',', ' |')
+
+    #         rows.append(fields + [
+    #             golden_row[0].item(), # golden top
+    #             corrupted_row[0].item(), # corrupted top
+    #             tau,
+    #             rbo,
+    #             rest_golden_rankings,
+    #             rest_rankings,
+    #         ])
+        
+    #     csv_writer.writerows(rows)
+    #     return tau_total, rbo_total
     
     
-    tau_critical, rbo_critical = _write_csv_rows(
-        corrupted_rankings[sdc_critical_mask],
-        golden_counterpart_rankings[sdc_critical_mask],
-        csv_fields + ['False']
-    )
-    tau_safe, rbo_safe = _write_csv_rows(
-        corrupted_rankings[~sdc_critical_mask],
-        golden_counterpart_rankings[~sdc_critical_mask],
-        csv_fields + ['True']
-    )
+    # tau_critical, rbo_critical = _write_csv_rows(
+    #     corrupted_rankings[sdc_critical_mask],
+    #     golden_counterpart_rankings[sdc_critical_mask],
+    #     csv_fields + ['False']
+    # )
+    # tau_safe, rbo_safe = _write_csv_rows(
+    #     corrupted_rankings[~sdc_critical_mask],
+    #     golden_counterpart_rankings[~sdc_critical_mask],
+    #     csv_fields + ['True']
+    # )
 
     # save average total statistics for this fault
     metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-safe)'] = (tau_safe / num_sdc_safe) if num_sdc_safe > 0 else 0.0
@@ -455,7 +540,7 @@ def compute_classification_final_metrics(
 def compute_segmentation_final_metrics(
     csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
     error_results, golden_results,
-    num_classes: int, tolerance: float = 0.5,
+    num_classes: int, tolerance: float = 0.5, num_threads: int = 4,
 ):
     """
     Note: tolerance is used as a mIOU threshold to determine if a corruption is SDC safe or critical.
@@ -505,7 +590,7 @@ def compute_segmentation_final_metrics(
 def compute_yolo_detection_final_metrics(
     csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
     error_results, golden_results,
-    tolerance: float=0.5,
+    tolerance: float=0.5, num_threads: int = 4,
 ):
     """
     Note: tolerance is used as the IOU threshold.
