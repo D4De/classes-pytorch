@@ -41,6 +41,8 @@ if __name__ == '__main__':
     with open(configuration_file_path, 'r') as config_file:
         config = yaml.load(config_file, yaml.SafeLoader)
 
+    num_threads = config.get('num_threads', 4)
+    compute_single_metrics = config.get('compute_single_metrics', False)
 
     # ensure that error models path exists
     try:
@@ -149,7 +151,7 @@ if __name__ == '__main__':
             device=device,
             logger=exp_logger,
         )
-        fault_list.generate_and_persist_fault_list(fault_list_path, num_faults_per_module, logger=exp_logger)
+        fault_list.generate_and_persist_fault_list(fault_list_path, num_faults_per_module, logger=exp_logger, overwrite=True)
     
     # load the fault list metadata
     exp_logger.info('Loading fault list')
@@ -232,8 +234,6 @@ if __name__ == '__main__':
                 error_simulator_pytorch_hook=error_simulator_pytorch_hook,
             )
 
-            num_threads = config.get('num_threads', 4)
-
             # compute metrics for run
             masked, sdc_safe, sdc_critical = error_run_metrics_fn(
                 csv_writer=csv_writer,
@@ -244,13 +244,16 @@ if __name__ == '__main__':
                 error_results=error_results,
                 golden_results=golden_results,
                 tolerance=tolerance,
+                outputs_path=outputs_dir,
+                compute_single_metrics=compute_single_metrics,
                 num_threads = num_threads,
             )
 
             # save fault results for this layer
             layer_metrics_dict[injectable_module_name][fault_num]['Masked'] = masked 
             layer_metrics_dict[injectable_module_name][fault_num]['SDC safe'] = sdc_safe
-            layer_metrics_dict[injectable_module_name][fault_num]['SDC critical'] = sdc_critical 
+            layer_metrics_dict[injectable_module_name][fault_num]['SDC critical'] = sdc_critical
+            layer_metrics_dict[injectable_module_name][fault_num]['Spatial class'] = str(fault.spatial_pattern_name)
 
             total_masked += masked
             total_sdc_safe += sdc_safe

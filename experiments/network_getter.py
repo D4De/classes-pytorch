@@ -29,11 +29,11 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
 
     match id:
         case 'resnet50_cifar10':
-            from experiments.exp_resnet50_gtsrb.model import get_model
+            from experiments.exp_resnet50_cifar10.model import get_model
             from nets_repo.classification.cifar10.dataset import getCIFAR10
             from experiments.network_runner import classification_golden_run, classification_error_run
             from experiments.metrics import compute_classification_golden_run_metrics, compute_classification_final_metrics
-            model = get_model(10, os.path.join(weights_dir, 'resnet50'))
+            model = get_model(os.path.join(weights_dir, 'resnet50', 'fp32_res50_cifar10.pth'))
             _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size)
             golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
             golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info.num_classes)

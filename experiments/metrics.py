@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 
@@ -367,13 +368,12 @@ def compute_yolo_detection_golden_run_metrics(golden_results, logger, report_dat
 def compute_classification_final_metrics(
     csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
     error_results, golden_results,
-    tolerance: float, num_threads: int = 4,
+    tolerance: float, outputs_path: str, compute_single_metrics: bool = False, num_threads: int = 4,
 ):
-    # REMINDER: the CSV fields are
-    # ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted',
-    # 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']
-    csv_fields = [module_name, error_number, fault.spatial_pattern_name]
-
+    """
+    Note: if 'compute_row_metrics' is False, the corrupted rankings will be saved as numpy files for later processing.
+    If it is True, single row metrics such as Kendall Tau will be computed immediately, but the process will take much longer.
+    """
     scores, rankings = error_results
     golden_scores, golden_labels, golden_rankings = golden_results
 
@@ -406,6 +406,45 @@ def compute_classification_final_metrics(
     num_sdc_critical: int = sdc_critical_mask.count_nonzero().item()
     num_sdc_safe: int = num_sdc - num_sdc_critical
 
+    spatial_pattern = str(fault.spatial_pattern_name)
+    if compute_single_metrics:
+        compute_classification_row_metrics(
+            corrupted_rankings, golden_counterpart_rankings, sdc_critical_mask,
+            num_sdc_safe, num_sdc_critical,
+            csv_writer, metrics_dict,
+            module_name, error_number, spatial_pattern,
+            num_threads
+        )
+    else:
+        # store rankings as files
+        storing_dir = os.path.join(outputs_path, 'saved_rankings', module_name)
+        os.makedirs(storing_dir, exist_ok=True)
+        file_prefix = f'err{error_number}_{spatial_pattern}_'
+        # safe
+        filename = file_prefix + 'sdcsafe_golden.npy'
+        np.save(os.path.join(storing_dir, filename), golden_counterpart_rankings[~sdc_critical_mask].cpu().numpy())
+        filename = file_prefix + 'sdcsafe_corrupted.npy'
+        np.save(os.path.join(storing_dir, filename), corrupted_rankings[~sdc_critical_mask].cpu().numpy())
+        # critical
+        filename = file_prefix + 'sdccritical_golden.npy'
+        np.save(os.path.join(storing_dir, filename), golden_counterpart_rankings[sdc_critical_mask].cpu().numpy())
+        filename = file_prefix + 'sdccritical_corrupted.npy'
+        np.save(os.path.join(storing_dir, filename), corrupted_rankings[sdc_critical_mask].cpu().numpy())
+    
+    return num_masked, num_sdc_safe, num_sdc_critical
+
+
+def compute_classification_row_metrics(
+        corrupted_rankings: torch.Tensor, golden_counterpart_rankings: torch.Tensor, sdc_critical_mask: torch.Tensor,
+        num_sdc_safe: int, num_sdc_critical: int,
+        csv_writer, metrics_dict: dict,
+        module_name: str, error_number: int, spatial_pattern_name: str,
+        num_threads: int,
+):
+    # REMINDER: the CSV fields are
+    # ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted',
+    # 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']
+    csv_fields = [module_name, error_number, spatial_pattern_name]
 
     # set up for parallel computation of single row metrics and csv writing
     thread_lock = Lock()
@@ -413,7 +452,7 @@ def compute_classification_final_metrics(
 
     def _thread_compute_row_metrics(
             corrupted: torch.Tensor, golden: torch.Tensor, csv_fields: list,
-            thread_id: int
+            thread_id: int, num_threads: int
     ):
         num_rows = corrupted.shape[0]
         current_row = thread_id
@@ -490,51 +529,11 @@ def compute_classification_final_metrics(
         tau_safe += metrics_tuple[0]
         rbo_safe += metrics_tuple[1]
 
-    # build csv row for each sdc
-    # def _write_csv_rows(corrupted: torch.Tensor, golden: torch.Tensor, fields: list):
-    #     rows = []
-    #     tau_total = rbo_total = 0.0
-
-    #     for corrupted_row, golden_row in zip(corrupted, golden):
-    #         tau = kendalltau(corrupted_row.clone().cpu(), golden_row.clone().cpu()).statistic.item()
-    #         rbo = rank_biased_overlap(corrupted_row, golden_row)
-    #         tau_total += tau
-    #         rbo_total += rbo
-
-    #         rest_rankings = str(corrupted_row[1:].tolist()).replace(',', ' |')
-    #         rest_golden_rankings = str(golden_row[1:].tolist()).replace(',', ' |')
-
-    #         rows.append(fields + [
-    #             golden_row[0].item(), # golden top
-    #             corrupted_row[0].item(), # corrupted top
-    #             tau,
-    #             rbo,
-    #             rest_golden_rankings,
-    #             rest_rankings,
-    #         ])
-        
-    #     csv_writer.writerows(rows)
-    #     return tau_total, rbo_total
-    
-    
-    # tau_critical, rbo_critical = _write_csv_rows(
-    #     corrupted_rankings[sdc_critical_mask],
-    #     golden_counterpart_rankings[sdc_critical_mask],
-    #     csv_fields + ['False']
-    # )
-    # tau_safe, rbo_safe = _write_csv_rows(
-    #     corrupted_rankings[~sdc_critical_mask],
-    #     golden_counterpart_rankings[~sdc_critical_mask],
-    #     csv_fields + ['True']
-    # )
-
     # save average total statistics for this fault
-    metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-safe)'] = (tau_safe / num_sdc_safe) if num_sdc_safe > 0 else 0.0
+    metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-safe)'] =     (tau_safe / num_sdc_safe) if num_sdc_safe > 0 else 0.0
     metrics_dict[module_name][error_number]['Average Kendall Tau (SDC-critical)'] = (tau_critical / num_sdc_critical) if num_sdc_critical > 0 else 0.0
-    metrics_dict[module_name][error_number]['Average RBO (SDC-safe)'] = (rbo_safe / num_sdc_safe) if num_sdc_safe > 0 else 0.0
-    metrics_dict[module_name][error_number]['Average RBO (SDC-critical)'] = (rbo_critical / num_sdc_critical) if num_sdc_critical > 0 else 0.0
-    
-    return num_masked, num_sdc_safe, num_sdc_critical
+    metrics_dict[module_name][error_number]['Average RBO (SDC-safe)'] =             (rbo_safe / num_sdc_safe) if num_sdc_safe > 0 else 0.0
+    metrics_dict[module_name][error_number]['Average RBO (SDC-critical)'] =         (rbo_critical / num_sdc_critical) if num_sdc_critical > 0 else 0.0
 
 
 def compute_segmentation_final_metrics(
