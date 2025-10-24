@@ -39,17 +39,37 @@ if __name__ == '__main__':
 
     # load configuration file
     with open(configuration_file_path, 'r') as config_file:
-        config = yaml.load(config_file, yaml.SafeLoader)
+        config: dict = yaml.load(config_file, yaml.SafeLoader)
 
-    num_threads = config.get('num_threads', 4)
-    compute_single_metrics = config.get('compute_single_metrics', False)
+    # extract mandatory parameters from config
+    key = 'experiment_name'
+    try:
+        experiment_name         = config[key]
+        key = 'network_dataset_id'
+        network_dataset_id      = config[key]
+        key = 'batch_size'
+        batch_size              = config[key]
+        key = 'error_models_path'
+        error_models_path       = os.path.realpath(config[key])
+        key = 'num_faults_per_module'
+        num_faults_per_module   = config[key]
+        key = 'fault_list_path'
+        fault_list_path         = os.path.realpath(config[key])
+    except KeyError:
+        raise ValueError(f'Required key {key} in experiment configuration file is missing.')
+
+    # get optional parameters
+    use_single_batch        = config.get('use_single_batch', True)
+    tolerance               = config.get('tolerance', 0.001)
+    num_threads             = config.get('num_threads', 4)
+    compute_single_metrics  = config.get('compute_single_metrics', False)
 
     # ensure that error models path exists
     try:
-        utils.ensure_dir_exists_nonempty(config['error_models_path'], 'error_models_path')
+        utils.ensure_dir_exists_nonempty(error_models_path, 'error_models_path')
     except Exception as e:
         print(e)
-        raise FileNotFoundError(f'Error model directory {config['error_models_path']} is empty')
+        raise FileNotFoundError(f'Error model directory {error_models_path} is empty')
 
     # prepare other directories if they don't exist
     outputs_dir = os.path.join(experiment_dir, 'outputs')
@@ -62,7 +82,7 @@ if __name__ == '__main__':
     logfile_path = os.path.join(logs_dir, f'explog_{current_datetime}.txt')
     exp_logger = logger.create_experiment_logger(__name__, logfile_path=logfile_path)
 
-    exp_logger.info(f'Started experiment - id is {config['network_dataset_id']}')
+    exp_logger.info(f'Started experiment - id is {network_dataset_id}')
 
     # paths for the overall report and the error report
     overall_report_path = os.path.join(outputs_dir, 'overall_report_' + current_datetime + '.yaml')
@@ -70,7 +90,7 @@ if __name__ == '__main__':
 
     # start collecting overall report data
     experiment_report_data = {}
-    experiment_report_data['Experiment name'] = config['experiment_name']
+    experiment_report_data['Experiment name'] = experiment_name
     experiment_report_data['Date and time'] = current_datetime
 
     #------------------------------------------------------------
@@ -82,17 +102,16 @@ if __name__ == '__main__':
     exp_logger.info('Getting network, dataset and experiment functions')
     (
     model, dataloader, network_info,
-    golden_run_fn, golden_run_metrics_fn,
-    error_run_fn, error_run_metrics_fn
-    ) = get_network_and_exp_functions(config['network_dataset_id'], config['batch_size'], device)
+    run_fn, metrics_fn
+    ) = get_network_and_exp_functions(network_dataset_id, batch_size, device)
     
 
-    num_samples = len(dataloader) * dataloader.batch_size
+    num_samples = dataloader.batch_size if use_single_batch else len(dataloader) * dataloader.batch_size
 
     exp_logger.info(f'Loaded model and weights')
-    exp_logger.info(f'Loaded dataset - batch size is {config['batch_size']} - sample count is {num_samples}')
+    exp_logger.info(f'Loaded dataset - batch size is {batch_size} - sample count is {num_samples}')
 
-    model_name, dataset_name = config['network_dataset_id'].split('_')
+    model_name, dataset_name = network_dataset_id.split('_')
 
     experiment_report_data['Dataset data'] = {
         'Dataset name': dataset_name,
@@ -105,9 +124,9 @@ if __name__ == '__main__':
 
     # collect a few other hyperparameters
     experiment_report_data['Experiment hyperparameters'] = {
-        'Batch size': config['batch_size'],
-        'Injected errors per module': config['num_faults_per_module'],
-        'Tolerance value for tensor equality': config['tolerance']
+        'Batch size': batch_size,
+        'Injected errors per module': num_faults_per_module,
+        'Tolerance value for tensor equality': tolerance
     }
     #------------------------------------------------------------
     # AN OVERVIEW OF THE EXPERIMENT PROCESS
@@ -128,10 +147,6 @@ if __name__ == '__main__':
     # 5) An error run postprocessing function is called. The function takes the golden results and the error ones, computes the appropriate
     # metrics for each injection run and saves them, possibly along with other metadata. Regardless of the function implementation, it should
     # always return the number of masked, sdc safe and sdc critical results for an injection.
-    
-    # fault generation
-    fault_list_path = config['fault_list_path']
-    num_faults_per_module = config['num_faults_per_module']
 
     # if the fault list does not exist or regeneration was requested, create it now
     if regenerate_faults or not os.path.exists(fault_list_path):
@@ -139,7 +154,7 @@ if __name__ == '__main__':
             f' Generating a new one with {num_faults_per_module} faults per network layer.')
 
         module_to_generator_mapping = create_module_to_generator_mapper_dynamic(
-            model_folder_path=config['error_models_path'],
+            model_folder_path=error_models_path,
             logger=exp_logger,
         )
         
@@ -156,34 +171,9 @@ if __name__ == '__main__':
     # load the fault list metadata
     exp_logger.info('Loading fault list')
     fault_list_info = PyTorchFaultListDynamicMetadata.load_fault_list_info(fault_list_path)
-
-    tolerance = config['tolerance']
     
     #------------------------------------------------------------
-    # golden run
-
-    timer = utils.Timer()
-    timer.start()
-
-    golden_results = golden_run_fn()
-
-    timer.stop()
-    golden_runtime = timer.get_duration_as_str()
-
-    exp_logger.info(f'Golden run done, took {golden_runtime}')
-
-    # NOTE: for classification, postprocess_results is golden_rankings
-    golden_postprocess_results = golden_run_metrics_fn(
-        golden_results=golden_results,
-        logger=exp_logger,
-        report_data=experiment_report_data,
-        runtime=golden_runtime
-    )
-    # pack the postprocess results with the golden ones
-    golden_results = (*golden_results, golden_postprocess_results)
-
-    #------------------------------------------------------------
-    # error simulation
+    # START ERROR INJECTION
     # these total metrics are meaningless in terms of individual SEUs, they are just for report completeness
     total_injected_errors = 0
     total_masked = 0
@@ -197,6 +187,7 @@ if __name__ == '__main__':
     csv_writer = csv.writer(error_report_csv)
     csv_writer.writerow(network_info.csv_header)
 
+    timer = utils.Timer()
     timer.start()
 
     for injectable_module_name in fault_list_info.injectable_layers:
@@ -220,8 +211,7 @@ if __name__ == '__main__':
         for fault_num, fault in enumerate(fault_list_loader):
             layer_metrics_dict[injectable_module_name][fault_num] = {}
 
-            exp_logger.info(f'Output Shape: {fault.corrupted_value_mask.shape}')
-            exp_logger.info(f'Spatial Pattern: {fault.spatial_pattern_name}')
+            exp_logger.info(f'Error {fault_num} | Spatial Pattern: {fault.spatial_pattern_name}')
 
             fault.to(device=device)
 
@@ -229,20 +219,20 @@ if __name__ == '__main__':
             error_simulator_pytorch_hook = create_simulator_hook(fault)
 
             # perform run
-            error_results = error_run_fn(
+            results = run_fn(
                 injected_module=module,
                 error_simulator_pytorch_hook=error_simulator_pytorch_hook,
+                use_single_batch=use_single_batch,
             )
 
-            # compute metrics for run
-            masked, sdc_safe, sdc_critical = error_run_metrics_fn(
+            # compute metrics
+            masked, sdc_safe, sdc_critical = metrics_fn(
+                results=results,
+                layer_metrics_dict=layer_metrics_dict,
                 csv_writer=csv_writer,
-                metrics_dict=layer_metrics_dict,
                 module_name=injectable_module_name,
                 error_number=fault_num,
                 fault=fault,
-                error_results=error_results,
-                golden_results=golden_results,
                 tolerance=tolerance,
                 outputs_path=outputs_dir,
                 compute_single_metrics=compute_single_metrics,

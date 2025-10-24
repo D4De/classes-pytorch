@@ -30,54 +30,6 @@ def accuracy_topk(scores: torch.Tensor, labels: torch.Tensor, k: int):
     return correct_total.item() * (100.0 / num_samples)
 
 
-def find_corrupted_output_rows(output: torch.Tensor, golden_output: torch.Tensor, tolerance: float = 0.0):
-    """
-    Compares a possibly faulty network output and the corresponding golden output.
-    For each element, if abs(output - golden) >= tolerance, a corruption is detected.
-    Each row is considered corrupted if at least one of its values is corrupted.
-    
-    Args
-    ----
-    * output: network output of shape (num_samples, num_classes)
-    * golden_output: golden network output of shape (num_samples, num_classes)
-    * tolerance: maximum allowed shift from the golden values
-    ----
-    Returns
-    ----
-    * A tensor of shape (num_samples, 1). Each element is boolean; True indicates \
-    that the corresponding output row was corrupted. Can be used as a mask \
-    to access the faulty output and retrieve only the faulty rows for further processing.
-    ----
-    """
-    error = torch.abs(output - golden_output) # shape is (num_samples, num_classes), stores absolute element-wise difference
-    error_mask = (error >= tolerance).squeeze() # shape is (num_samples, num_classes), stores True where position was corrupted
-    return torch.any(error_mask, dim=1) # shape is (num_samples, 1), stores True where row was corrupted
-
-
-def find_ranking_shifts(faulty_output: torch.Tensor, golden_output: torch.Tensor, topk: int=None):
-    """
-    Extracts the topk rankings from the faulty output rows and the corresponding
-    golden rankings and compares them. If parameter 'topk' is None, the entire ranking is considered.
-    
-    Returns
-    ----
-    * A tensor of shape (num_rows, 1). Each element is boolean; True indicates \
-    that the rankings are different.
-    ----
-    """
-    if topk is None:
-        # use the number of rows to get the entire ranking
-        topk = faulty_output.shape[1]
-
-    # extract faulty rankings from output (indices only, sorted)
-    faulty_rankings = faulty_output.topk(topk)[1]
-    # extract golden rankings (indices only, sorted)
-    golden_rankings = golden_output.topk(topk)[1]
-    
-    equal_rankings = torch.all(torch.eq(faulty_rankings, golden_rankings), -1).squeeze()
-    return equal_rankings
-
-
 def rank_biased_overlap(ranking: torch.Tensor, golden_ranking: torch.Tensor, p: float = 0.62):
     """
     Given a ranking and the corresponding golden ranking, computes the Rank Biased Overlap metric.
@@ -292,28 +244,6 @@ def yolo_coco_evaluate_corrupted(golden: Results, corrupted: Results, iou_thresh
 
 
 #--METRICS COMPUTATION FOR RUNS--
-def compute_classification_golden_run_metrics(golden_results, num_classes: int, logger, report_data, runtime):
-    golden_scores, golden_labels = golden_results
-
-     # compute accuracy and other scores
-    golden_top1_accuracy = accuracy_topk(golden_scores, golden_labels, 1)
-    golden_top5_accuracy = accuracy_topk(golden_scores, golden_labels, 5)
-    logger.info(f'top1 accuracy is {golden_top1_accuracy} - top5 accuracy is {golden_top5_accuracy}')
-
-    # get golden rankings (indices only)
-    golden_rankings = golden_scores.topk(num_classes)[1]
-    
-    # save results to report
-    # TODO: save other metrics once they're computed
-    report_data['Golden run data'] = {
-        'Top1 accuracy': golden_top1_accuracy,
-        'Top5 accuracy': golden_top5_accuracy,
-        'Golden inference runtime': runtime
-    }
-
-    return golden_rankings
-
-
 def compute_segmentation_golden_run_metrics(golden_results, num_classes: int, logger, report_data, runtime):
     predictions, ground_truth = golden_results
 
@@ -365,29 +295,33 @@ def compute_yolo_detection_golden_run_metrics(golden_results, logger, report_dat
 
 
 
-def compute_classification_final_metrics(
-    csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
-    error_results, golden_results,
+def compute_classification_run_metrics(
+    results, layer_metrics_dict: dict, 
+    csv_writer, module_name: str, error_number: int, fault: PyTorchFault,
     tolerance: float, outputs_path: str, compute_single_metrics: bool = False, num_threads: int = 4,
 ):
     """
     Note: if 'compute_row_metrics' is False, the corrupted rankings will be saved as numpy files for later processing.
     If it is True, single row metrics such as Kendall Tau will be computed immediately, but the process will take much longer.
     """
-    scores, rankings = error_results
-    golden_scores, golden_labels, golden_rankings = golden_results
+    golden_scores, golden_labels, golden_rankings, error_scores, error_rankings = results
 
-    num_samples = scores.shape[0]
+    # golden metrics
+    golden_top1_accuracy = accuracy_topk(golden_scores, golden_labels, 1)
+    layer_metrics_dict[module_name][error_number]['Golden Top1 accuracy'] = golden_top1_accuracy
+
+
+    num_samples = golden_scores.shape[0]
 
     # compare golden and corrupted results
-    erroneous_values_mask: torch.Tensor = (torch.abs(torch.subtract(scores, golden_scores)) > tolerance) # True where an element differs from the golden more than tolerance
+    erroneous_values_mask: torch.Tensor = (torch.abs(torch.subtract(error_scores, golden_scores)) > tolerance) # True where an element differs from the golden more than tolerance
     corrupted_rows_mask = erroneous_values_mask.any(dim=-1).squeeze() # True for corrupted rows
 
     num_sdc: int = corrupted_rows_mask.count_nonzero().item()
     num_masked: int = num_samples - num_sdc
 
     # compare corrupted rankings and corresponding golden ones
-    corrupted_rankings: torch.Tensor = rankings[corrupted_rows_mask]
+    corrupted_rankings: torch.Tensor = error_rankings[corrupted_rows_mask]
     golden_counterpart_rankings: torch.Tensor = golden_rankings[corrupted_rows_mask]
     top1_corrupted = corrupted_rankings[:, 0] # first column = top1 index
     top1_golden = golden_counterpart_rankings[:, 0]
@@ -396,7 +330,7 @@ def compute_classification_final_metrics(
     different_top1_mask = top1_corrupted.not_equal(top1_golden)
 
     # get scores corresponding to the top classes
-    top1_corrupted_scores = scores[corrupted_rows_mask, top1_corrupted]
+    top1_corrupted_scores = error_scores[corrupted_rows_mask, top1_corrupted]
     top1_golden_scores = golden_scores[corrupted_rows_mask, top1_golden]
     # if the top scores differ by more than 5%, we have a critical SDC
     wrong_scores_mask = (torch.abs(torch.subtract(top1_corrupted_scores, top1_golden_scores)) > 0.05)
@@ -411,7 +345,7 @@ def compute_classification_final_metrics(
         compute_classification_row_metrics(
             corrupted_rankings, golden_counterpart_rankings, sdc_critical_mask,
             num_sdc_safe, num_sdc_critical,
-            csv_writer, metrics_dict,
+            csv_writer, layer_metrics_dict,
             module_name, error_number, spatial_pattern,
             num_threads
         )
@@ -498,7 +432,7 @@ def compute_classification_row_metrics(
     golden_critical_rows = golden_counterpart_rankings[sdc_critical_mask].cpu()
     for thread_id in range(num_threads):
         t = Thread(target = _thread_compute_row_metrics, args=(
-            sdc_critical_rows, golden_critical_rows, csv_fields + ['False'], thread_id,
+            sdc_critical_rows, golden_critical_rows, csv_fields + ['False'], thread_id, num_threads,
         ))
         threads.append(t)
     for t in threads:
@@ -517,7 +451,7 @@ def compute_classification_row_metrics(
     golden_safe_rows = golden_counterpart_rankings[~sdc_critical_mask].cpu()
     for thread_id in range(num_threads):
         t = Thread(target = _thread_compute_row_metrics, args=(
-            sdc_safe_rows, golden_safe_rows, csv_fields + ['True'], thread_id,
+            sdc_safe_rows, golden_safe_rows, csv_fields + ['True'], thread_id, num_threads,
         ))
         threads.append(t)
     for t in threads:

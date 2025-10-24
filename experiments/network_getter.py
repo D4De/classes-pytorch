@@ -31,14 +31,12 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
         case 'resnet50_cifar10':
             from experiments.exp_resnet50_cifar10.model import get_model
             from nets_repo.classification.cifar10.dataset import getCIFAR10
-            from experiments.network_runner import classification_golden_run, classification_error_run
-            from experiments.metrics import compute_classification_golden_run_metrics, compute_classification_final_metrics
+            from experiments.network_runner import classification_run
+            from experiments.metrics import compute_classification_run_metrics
             model = get_model(os.path.join(weights_dir, 'resnet50', 'fp32_res50_cifar10.pth'))
-            _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size)
-            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
-            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info.num_classes)
-            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
-            error_run_metrics_fn = compute_classification_final_metrics
+            _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
+            run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
+            metrics_fn = compute_classification_run_metrics
 
         case 'alexnet_cifar10':
             from nets_repo.classification.cifar10.models.alexnet import AlexNet
@@ -46,12 +44,10 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             from experiments.network_runner import classification_golden_run, classification_error_run
             from experiments.metrics import compute_classification_golden_run_metrics, compute_classification_final_metrics
             model = AlexNet()
-            model.load_state_dict(torch.load(os.path.join(weights_dir, 'alexnet/fp32_alexnet_cifar10.pth')))
-            _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size)
-            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
-            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info.num_classes)
-            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
-            error_run_metrics_fn = compute_classification_final_metrics
+            model.load_state_dict(torch.load(os.path.join(weights_dir, 'alexnet', 'fp32_alexnet_cifar10.pth')))
+            _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
+            run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
+            metrics_fn = compute_classification_run_metrics
 
         case 'mobilenetv2_gtsrb':
             from other_nets.classification.gtsrb.models.mobilenetv2 import get_mobilenetv2_model
@@ -91,4 +87,4 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
 
     model.eval()
     model.to(device=device)
-    return model, loader, network_info, golden_run_fn, golden_run_metrics_fn, error_run_fn, error_run_metrics_fn
+    return model, loader, network_info, run_fn, metrics_fn
