@@ -1,0 +1,10 @@
+experiment_name: Example Name
+network_dataset_id: resnet50_cifar10
+batch_size: 10
+error_models_path: /home/alberto/MasterThesis/classes/error_models/conv_models/nv_8x8_b1_dat-32768_wt-123904_int8
+num_faults_per_module: 10
+fault_list_path: '/home/alberto/MasterThesis/classes/experiments/exp_resnet50_cifar10/resnet50_cifar10_fault_list.tar'
+use_single_batch: True
+tolerance: 0.001
+num_threads: 4
+compute_single_metrics: False

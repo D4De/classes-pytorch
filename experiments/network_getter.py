@@ -41,8 +41,8 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
         case 'alexnet_cifar10':
             from nets_repo.classification.cifar10.models.alexnet import AlexNet
             from nets_repo.classification.cifar10.dataset import getCIFAR10
-            from experiments.network_runner import classification_golden_run, classification_error_run
-            from experiments.metrics import compute_classification_golden_run_metrics, compute_classification_final_metrics
+            from experiments.network_runner import classification_run
+            from experiments.metrics import compute_classification_run_metrics
             model = AlexNet()
             model.load_state_dict(torch.load(os.path.join(weights_dir, 'alexnet', 'fp32_alexnet_cifar10.pth')))
             _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
@@ -52,14 +52,12 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
         case 'mobilenetv2_gtsrb':
             from other_nets.classification.gtsrb.models.mobilenetv2 import get_mobilenetv2_model
             from other_nets.classification.gtsrb.dataset import getGTSRB
-            from experiments.network_runner import classification_golden_run, classification_error_run
-            from experiments.metrics import compute_classification_golden_run_metrics, compute_classification_final_metrics
+            from experiments.network_runner import classification_run
+            from experiments.metrics import compute_classification_run_metrics
             model = get_mobilenetv2_model(43, os.path.join(weights_dir, 'mobilenetv2', 'mobilenetv2_gtsrb_best.pth'))
             loader = getGTSRB(os.path.join(data_dir, 'gtsrb'), batch_size, 0)
-            golden_run_fn = partial(classification_golden_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
-            golden_run_metrics_fn = partial(compute_classification_golden_run_metrics, num_classes=network_info.num_classes)
-            error_run_fn = partial(classification_error_run, model=model, dataloader=loader, num_classes=network_info.num_classes, device=device)
-            error_run_metrics_fn = compute_classification_final_metrics
+            run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
+            metrics_fn = compute_classification_run_metrics
 
         case 'yolov11_coco':
             from other_nets.detection.coco.models.yolov11.yolov11 import get_yolov11
