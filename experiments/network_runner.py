@@ -43,11 +43,11 @@ def classification_run(
 
         # golden run
         with torch.no_grad():
-            for batch_id, (image, label) in enumerate(tqdm(dataloader, desc='Performing golden run', colour='yellow')):
-                image = image.to(device)
+            for batch_id, (imgs, label) in enumerate(tqdm(dataloader, desc='Performing golden run', colour='yellow')):
+                imgs = imgs.to(device)
                 label = label.to(device)
 
-                output = model(image)
+                output = model(imgs).to(device)
                 # IMPORTANT: image is a batch of samples, so output can be considered a matrix with one row per sample in the batch
                 # and 'num_classes' columns listing the probabilities for that sample to correspond to each class
 
@@ -60,11 +60,9 @@ def classification_run(
         # error run
         # run inference with injected error and collect results
         with applied_hook(injected_module, error_simulator_pytorch_hook), torch.no_grad():
-            for batch_id, (image, label) in enumerate(tqdm(dataloader, colour='red')):
-                image = image.to(device)
-                label = label.to(device)
-                
-                output = model(image)
+            for batch_id, (imgs, _) in enumerate(tqdm(dataloader, colour='red')):
+                imgs = imgs.to(device)
+                output = model(imgs).to(device)
             
                 # store scores
                 start_idx = batch_id * dataloader.batch_size
@@ -76,6 +74,76 @@ def classification_run(
     error_rankings = error_scores.topk(num_classes)[1]
 
     return golden_scores, golden_labels, golden_rankings, error_scores, error_rankings
+
+
+def segmentation_run(
+    model: torch.nn.Module,
+    dataloader: torch.utils.data.DataLoader,
+    device,
+    injected_module: torch.nn.Module,
+    error_simulator_pytorch_hook,
+    use_single_batch=True,
+):
+    if use_single_batch:
+        num_samples = dataloader.batch_size
+        # get batch
+        for imgs, ground_truth in dataloader: break
+        imgs = imgs.to(device)
+        ground_truth = ground_truth.to(device)
+
+        with torch.no_grad():
+            # golden inference
+            output = model(imgs)['out']
+            golden_out = torch.argmax(output, dim=1).to(device)
+
+        # error inference
+        with applied_hook(injected_module, error_simulator_pytorch_hook), torch.no_grad():
+            output = model(imgs)['out']
+            error_out = torch.argmax(output, dim=1).to(device)
+
+    else:
+        num_samples = len(dataloader) * dataloader.batch_size
+        # get shape of the images
+        for sample_img, _ in dataloader: break
+        input_shape = sample_img.shape
+
+        # prepare a golden out matrix: one tensor for each sample in the dataloader, each tensor has the same shape as the sample
+        golden_out = torch.zeros((num_samples, input_shape[-2], input_shape[-1]), device=device)
+        # prepare a ground truth matrix, same shape as the golden output
+        ground_truth = torch.zeros_like(golden_out, device=device)
+        # prepare an error out matrix, same shape as the golden output
+        error_out = torch.zeros_like(golden_out, device=device)
+
+        with torch.no_grad():
+            for batch_id, (imgs, truth) in enumerate(tqdm(dataloader, desc='Performing golden run', colour='yellow')):
+                imgs = imgs.to(device)
+                truth = truth.to(device)
+
+                output = model(imgs)['out']
+                # output is a tensor: the first dimension is the batch size, the second is the number of segmentation classes, the
+                # last two are the original image sizes. To obtain a proper annotated prediction, we need to argmax over the second
+                # dimension
+                output = torch.argmax(output, dim=1).to(device)
+
+                # save golden output and ground truth
+                start_idx = batch_id * dataloader.batch_size
+                end_idx = start_idx + output.size(0)
+                golden_out[start_idx:end_idx] = output
+                ground_truth[start_idx:end_idx] = truth
+
+        # run inference with injected error and collect results
+        with applied_hook(injected_module, error_simulator_pytorch_hook), torch.no_grad():
+            for batch_id, (imgs, _) in enumerate(tqdm(dataloader, colour='red')):
+                imgs = imgs.to(device)
+                output = model(imgs)['out']
+                output = torch.argmax(output, dim=1).to(device)
+            
+                # store scores
+                start_idx = batch_id * dataloader.batch_size
+                end_idx = start_idx + output.size(0)
+                error_out[start_idx:end_idx, :] = output
+
+    return golden_out, ground_truth, error_out
 
 
 #--GOLDEN RUNS--

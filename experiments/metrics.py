@@ -59,51 +59,47 @@ def rank_biased_overlap(ranking: torch.Tensor, golden_ranking: torch.Tensor, p: 
 
 def mIOU(prediction: torch.Tensor, target: torch.Tensor, num_classes: int):
     """
-    Computes the mean IOU for a single image, given the prediction and the ground truth.
-    prediction and target should be of size (height, width)
+    Computes the mean IOU for a batch of images, given the prediction and the ground truth.
+    Additionally, computes the number of true positive, false positive and false negative pixels for each image.
+    prediction and target should be of shape (num_samples, height, width)
     """
     assert prediction.shape == target.shape, f'Prediction and target shapes do not match: {prediction.shape=} and {target.shape=}'
+    
+    num_samples = prediction.shape[0]
+    # one row per sample, one column per segmentation class
+    ious = torch.zeros((num_samples, num_classes), device=prediction.device)
+    # one entry per sample
+    TPs = torch.zeros((num_samples,), device=prediction.device)
+    FPs = torch.zeros_like(TPs)
+    FNs = torch.zeros_like(TPs)
 
-    #prediction = prediction.max(1)[1].float().cpu().numpy()
-    #target = target.float().cpu().numpy() 
-
-    iou_list = list()
-    present_iou_list = list()
-
-    for sem_class in range(num_classes):
-        pred_inds = (prediction == sem_class)
-        target_inds = (target == sem_class)
-        if target_inds.sum().item() == 0:
-            iou_now = float('nan')
-        else:
-            intersection_now = (pred_inds[target_inds]).sum().item()
-            union_now = pred_inds.sum().item() + target_inds.sum().item() - intersection_now
-            iou_now = float(intersection_now) / float(union_now)
-            present_iou_list.append(iou_now)
-        iou_list.append(iou_now)
-    miou = np.mean(present_iou_list).item()
-    return miou
-
-
-def evaluate_segmentation(prediction: torch.Tensor, target: torch.Tensor, num_classes: int):
-    """
-    Takes an image and the corresponding target (labelled) image and finds the number of true positive, false positive and false negative pixels.
-    """
-    assert prediction.shape == target.shape, f'Prediction and target shapes do not match: {prediction.shape=} and {target.shape=}'
-    TP = FP = FN = 0
+    def _count_nonzero_twice(t: torch.Tensor):
+        return torch.count_nonzero(torch.count_nonzero(t, dim=-1), dim=-1)
 
     for sem_class in range(num_classes):
-        pred_inds = (prediction == sem_class)
-        target_inds = (target == sem_class)
+        pred_inds = (prediction == sem_class) # True where the prediction's pixels are 'sem_class'
+        # count number of matching pixels for each entry, shape (num_samples,)
+        pred_nums = _count_nonzero_twice(pred_inds)
 
-        pred_total = pred_inds.sum().item()
-        target_total = target_inds.sum().item()
+        target_inds = (target == sem_class) # True where the target's pixels are 'sem_class'
+        target_nums = _count_nonzero_twice(target_inds)
 
-        TP += (pred_inds[target_inds]).sum().item() # pixels that match
-        FP += pred_total - TP # predicted pixels that are not actually labelled
-        FN += target_total - TP # labelled pixels that were not matched
+        # count how many matching pixels in the target are also in the prediction
+        matching = torch.logical_and(pred_inds, target_inds)
+        intersection_nums = _count_nonzero_twice(matching)
+        # count the total number of pixels
+        union_nums = pred_nums + target_nums - intersection_nums
 
-    return TP, FP, FN
+        class_ious = intersection_nums / union_nums
+
+        ious[:, sem_class] = class_ious
+        TPs += intersection_nums
+        FPs += pred_nums - intersection_nums
+        FNs += target_nums - intersection_nums
+
+    # take the average for each row
+    mious = torch.mean(ious, dim=-1)
+    return mious, TPs, FPs, FNs
 
 
 def iou_two_bboxes(predicted_box: list[float], golden_box: list[float]):
@@ -244,27 +240,6 @@ def yolo_coco_evaluate_corrupted(golden: Results, corrupted: Results, iou_thresh
 
 
 #--METRICS COMPUTATION FOR RUNS--
-def compute_segmentation_golden_run_metrics(golden_results, num_classes: int, logger, report_data, runtime):
-    predictions, ground_truth = golden_results
-
-    total_miou = 0.0
-    num_samples = predictions.shape[0]
-
-    for single_prediction, single_truth in zip(predictions, ground_truth):
-        total_miou += mIOU(single_prediction, single_truth, num_classes)
-    
-    # compute scoring metrics
-    average_miou = float(total_miou/num_samples)
-    logger.info(f'Average mIOU is {average_miou}')
-
-    report_data['Golden run data'] = {
-        'Average mIOU': average_miou,
-        'Golden inference runtime': runtime
-    }
-
-    return None
-
-
 def compute_yolo_detection_golden_run_metrics(golden_results, logger, report_data, runtime):
     predictions, ground_truth = golden_results
 
@@ -470,54 +445,174 @@ def compute_classification_row_metrics(
     metrics_dict[module_name][error_number]['Average RBO (SDC-critical)'] =         (rbo_critical / num_sdc_critical) if num_sdc_critical > 0 else 0.0
 
 
-def compute_segmentation_final_metrics(
-    csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
-    error_results, golden_results,
-    num_classes: int, tolerance: float = 0.5, num_threads: int = 4,
+
+
+def compute_segmentation_run_metrics(
+    results, layer_metrics_dict: dict, 
+    csv_writer, module_name: str, error_number: int, fault: PyTorchFault, num_classes: int,
+    tolerance: float, outputs_path: str, compute_single_metrics: bool = False, num_threads: int = 4,
 ):
-    """
-    Note: tolerance is used as a mIOU threshold to determine if a corruption is SDC safe or critical.
-    """
-    error_predictions = error_results
-    golden_predictions, ground_truth, other_info = golden_results
+    # all three of these tensors have shape (num_samples, height, width)
+    golden_predictions, ground_truth, error_predictions = results
+    num_samples: int = golden_predictions.shape[0]
 
-    num_masked = num_sdc_safe = num_sdc_critical = 0
-    total_TP, total_FP, total_FN = 0
+    # compute average mIOU for the golden run
+    golden_run_mious, TP, FP, FN = mIOU(golden_predictions, ground_truth, num_classes)
+    avg_golden_miou = torch.mean(golden_run_mious).item()
+    avg_golden_precision = torch.mean(TP / (TP + FP)).item()
+    avg_golden_recall = torch.mean(TP / (TP + FN)).item()
+    layer_metrics_dict[module_name][error_number]['Average golden mIOU'] = avg_golden_miou
+    layer_metrics_dict[module_name][error_number]['Average golden precision'] = avg_golden_precision
+    layer_metrics_dict[module_name][error_number]['Average golden recall'] = avg_golden_recall
 
-    current_index = 0
+    # compute mIOUs for the error run
+    error_run_mious, TP, FP, FN = mIOU(error_predictions, golden_predictions, num_classes)
+    reciprocal_error_run_mious = (1.0 - error_run_mious)
 
-    for error_prediction, golden_prediction in zip(error_predictions, golden_predictions):
-        if (error_prediction != golden_prediction).any().item(): # if at any point the pixel prediction is different, the output was corrupted
-            miou = mIOU(error_prediction, golden_prediction, num_classes)
-            if miou > tolerance:
-                num_sdc_critical += 1
-            else:
-                num_sdc_safe += 1
+    # determine where (1-mIOU) > tolerance: those are SDCs
+    sdc_mask = (reciprocal_error_run_mious > tolerance)
+    sdc_mious = error_run_mious[sdc_mask]
+    TP = TP[sdc_mask]
+    FP = FP[sdc_mask]
+    FN = FN[sdc_mask]
 
-            TP, FP, FN = evaluate_segmentation(error_prediction, golden_prediction, num_classes)
+    num_sdc: int = torch.count_nonzero(sdc_mask).item()
+    num_masked: int = num_samples - num_sdc
 
-            csv_fields = [module_name, error_number]
-            csv_fields.append(current_index) # add sample index
-            csv_fields.append(fault.spatial_pattern_name) # add spatial pattern
-            csv_fields.append(miou)
-            csv_fields.append(TP / (TP + FP)) # precision
-            csv_fields.append(TP / (TP + FN)) # recall
-            csv_writer.writerow(csv_fields)
+    # determine where (1-mIOU) > 5%: those are critical SDCs
+    sdc_critical_mask = (reciprocal_error_run_mious[sdc_mask] > 0.05)
+    num_sdc_critical: int = torch.count_nonzero(sdc_critical_mask).item()
+    num_sdc_safe: int = num_sdc - num_sdc_critical
 
-            total_TP += TP
-            total_FP += FP
-            total_FN += FN
+    # add average mIOU, precision and recall to report
+    mious_critical = sdc_mious[sdc_critical_mask]
+    TP_critical = TP[sdc_critical_mask]
+    FP_critical = FP[sdc_critical_mask]
+    FN_critical = FN[sdc_critical_mask]
+    avg_critical_miou = torch.mean(mious_critical).item()
+    avg_critical_precision = torch.mean(TP_critical / (TP_critical + FP_critical)).item()
+    avg_critical_recall = torch.mean(TP_critical / (TP_critical + FN_critical)).item()
+    layer_metrics_dict[module_name][error_number]['Average SDC critical mIOU'] = avg_critical_miou
+    layer_metrics_dict[module_name][error_number]['Average SDC critical precision'] = avg_critical_precision
+    layer_metrics_dict[module_name][error_number]['Average SDC critical recall'] = avg_critical_recall
 
-            current_index += 1
-        else:
-            # MASKED
-            num_masked += 1
+    mious_safe = sdc_mious[~sdc_critical_mask]
+    TP_safe = TP[~sdc_critical_mask]
+    FP_safe = FP[~sdc_critical_mask]
+    FN_safe = FN[~sdc_critical_mask]
+    avg_safe_miou = torch.mean(mious_safe).item()
+    avg_safe_precision = torch.mean(TP_safe / (TP_safe + FP_safe)).item()
+    avg_safe_recall = torch.mean(TP_safe / (TP_safe + FN_safe)).item()
+    layer_metrics_dict[module_name][error_number]['Average SDC safe mIOU'] = avg_safe_miou
+    layer_metrics_dict[module_name][error_number]['Average SDC safe precision'] = avg_safe_precision
+    layer_metrics_dict[module_name][error_number]['Average SDC safe recall'] = avg_safe_recall
 
-    # save metrics for the fault
-    metrics_dict[module_name][error_number]['Precision'] = total_TP / (total_TP + total_FP)
-    metrics_dict[module_name][error_number]['Recall'] = total_TP / (total_TP + total_FN)
+
+    spatial_pattern = str(fault.spatial_pattern_name)
+    if compute_single_metrics:
+        compute_segmentation_single_metrics(
+            sdc_mious, TP, FP, FN, sdc_critical_mask,
+            csv_writer, module_name, error_number, spatial_pattern, num_threads)
+    else:
+        # save SDC tensors (and corresponding golden tensors) to file
+        storing_dir = os.path.join(outputs_path, 'saved_outputs', module_name)
+        os.makedirs(storing_dir, exist_ok=True)
+        sdc_golden_predictions = golden_predictions[sdc_mask]
+        sdc_error_predictions = error_predictions[sdc_mask]
+
+        file_prefix = f'err{error_number}_{spatial_pattern}_'
+        # safe
+        filename = file_prefix + 'sdcsafe_golden.npy'
+        np.save(os.path.join(storing_dir, filename), sdc_golden_predictions[~sdc_critical_mask].cpu().numpy())
+        filename = file_prefix + 'sdcsafe_corrupted.npy'
+        np.save(os.path.join(storing_dir, filename), sdc_error_predictions[~sdc_critical_mask].cpu().numpy())
+        # critical
+        filename = file_prefix + 'sdccritical_golden.npy'
+        np.save(os.path.join(storing_dir, filename), sdc_golden_predictions[sdc_critical_mask].cpu().numpy())
+        filename = file_prefix + 'sdccritical_corrupted.npy'
+        np.save(os.path.join(storing_dir, filename), sdc_error_predictions[sdc_critical_mask].cpu().numpy())
 
     return num_masked, num_sdc_safe, num_sdc_critical
+
+
+def compute_segmentation_single_metrics(
+    mious: torch.Tensor, TP: torch.Tensor, FP: torch.Tensor, FN: torch.Tensor, sdc_critical_mask: torch.Tensor,
+    csv_writer,
+    module_name: str, error_number: int, spatial_pattern_name: str,
+    num_threads: int,
+):
+    # REMINDER: the csv header for segmentation is
+    #['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'mIOU', 'Precision', 'Recall']
+    csv_fields = [module_name, error_number, spatial_pattern_name]
+
+    # set up for parallel computation of single row metrics and csv writing
+    thread_lock = Lock()
+
+    def _thread_write_metrics(
+        mious: torch.Tensor, precisions: torch.Tensor, recalls: torch.Tensor, csv_fields: list,
+        thread_id: int, num_threads: int
+    ):
+        num_samples = mious.shape[0]
+        current_sample = thread_id
+
+        csv_rows = []
+
+        while current_sample < num_samples:
+            csv_rows.append(csv_fields + [
+                mious[current_sample].item(),
+                precisions[current_sample].item(),
+                recalls[current_sample].item(),
+            ])
+
+            current_row += num_threads
+        
+        # write csv rows
+        thread_lock.acquire()
+        csv_writer.writerows(csv_rows)
+        thread_lock.release()
+            
+
+    # critical
+    threads: list[Thread] = []
+
+    mious_critical = mious[sdc_critical_mask]
+    TP_critical = TP[sdc_critical_mask]
+    FP_critical = FP[sdc_critical_mask]
+    FN_critical = FN[sdc_critical_mask]
+    precision_critical = TP_critical / (TP_critical + FP_critical)
+    recall_critical = TP_critical / (TP_critical + FN_critical)
+
+    for thread_id in range(num_threads):
+        t = Thread(target = _thread_write_metrics, args=(
+            mious_critical, precision_critical, recall_critical, csv_fields + ['False'], thread_id, num_threads,
+        ))
+        threads.append(t)
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # safe
+    threads.clear()
+
+    mious_safe = mious[~sdc_critical_mask]
+    TP_safe = TP[~sdc_critical_mask]
+    FP_safe = FP[~sdc_critical_mask]
+    FN_safe = FN[~sdc_critical_mask]
+    precision_safe = TP_safe / (TP_safe + FP_safe)
+    recall_safe = TP_safe / (TP_safe + FN_safe)
+
+    for thread_id in range(num_threads):
+        t = Thread(target = _thread_write_metrics, args=(
+            mious_safe, precision_safe, recall_safe, csv_fields + ['True'], thread_id, num_threads,
+        ))
+        threads.append(t)
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+
 
 
 def compute_yolo_detection_final_metrics(

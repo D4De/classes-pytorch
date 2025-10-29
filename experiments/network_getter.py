@@ -12,8 +12,8 @@ available = {
     'resnet50_cifar10':    NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
     'alexnet_cifar10':     NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
     'mobilenetv2_gtsrb':   NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
-    'yolov11_coco':        NetworkInfo('Detection', 80, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Precision', 'Recall']),
-    'deeplabv3_oxfordpet': NetworkInfo('Segmentation', 3, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'mIOU', 'Precision', 'Recall']),
+    'yolov11_coco':        NetworkInfo('Detection',      80, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Precision', 'Recall']),
+    'deeplabv3_oxfordpet': NetworkInfo('Segmentation',    3, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'mIOU', 'Precision', 'Recall']),
 }
 
 def get_network_and_exp_functions(id: str, batch_size: int, device):
@@ -74,14 +74,12 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
         case 'deeplabv3_oxfordpet':
             from other_nets.segmentation.oxfordpet.models.deeplabv3 import get_deeplabv3
             from other_nets.segmentation.oxfordpet.dataset import get_oxfordpet
-            from experiments.network_runner import segmentation_golden_run, segmentation_error_run
-            from experiments.metrics import compute_segmentation_golden_run_metrics, compute_segmentation_final_metrics
+            from experiments.network_runner import segmentation_run
+            from experiments.metrics import compute_segmentation_run_metrics
             model = get_deeplabv3(os.path.join(weights_dir, 'deeplabv3', 'deeplabv3_pet_0.7500.pt'))
             loader = get_oxfordpet(os.path.join(data_dir, 'oxfordpet'), batch_size, 0)
-            golden_run_fn = partial(segmentation_golden_run, model=model, dataloader=loader, device=device)
-            golden_run_metrics_fn = partial(compute_segmentation_golden_run_metrics, num_classes=network_info.num_classes)
-            error_run_fn = partial(segmentation_error_run, model=model, dataloader=loader, device=device)
-            error_run_metrics_fn = partial(compute_segmentation_final_metrics, num_classes=network_info.num_classes)
+            run_fn = partial(segmentation_run, model=model, dataloader=loader, device=device)
+            metrics_fn = partial(compute_segmentation_run_metrics, num_classes=network_info.num_classes)
 
     model.eval()
     model.to(device=device)
