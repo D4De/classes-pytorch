@@ -10,9 +10,9 @@ NetworkInfo = namedtuple('NetworkInfo', ['task', 'num_classes', 'csv_header'])
 # final item is the csv header to use for the corrupted tensor report
 available = {
     'resnet50_cifar10':    NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
-    'alexnet_cifar10':     NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
-    'mobilenetv2_gtsrb':   NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Topclass golden', 'Topclass corrupted', 'Ranking deviation present', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
-    'yolov11_coco':        NetworkInfo('Detection',      80, ['Layer name', 'Error number', 'Sample index', 'Spatial pattern', 'Precision', 'Recall']),
+    'alexnet_cifar10':     NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'mobilenetv2_gtsrb':   NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'yolov11_coco':        NetworkInfo('Detection',      80, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Precision', 'Recall']),
     'deeplabv3_oxfordpet': NetworkInfo('Segmentation',    3, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'mIOU', 'Precision', 'Recall']),
 }
 
@@ -62,14 +62,13 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
         case 'yolov11_coco':
             from other_nets.detection.coco.models.yolov11.yolov11 import get_yolov11
             from other_nets.detection.coco.dataset import getCOCO
-            from experiments.network_runner import yolo_detection_golden_run, yolo_detection_error_run
-            from experiments.metrics import compute_yolo_detection_golden_run_metrics, compute_yolo_detection_final_metrics
+            from experiments.network_runner import yolo_detection_run
+            from experiments.metrics import compute_yolo_detection_run_metrics
+            image_size: int = 128
             model = get_yolov11(os.path.join(weights_dir, 'yolov11'))
-            loader = getCOCO(os.path.join(data_dir, 'coco'), batch_size)
-            golden_run_fn = partial(yolo_detection_golden_run, model=model, dataloader=loader)
-            golden_run_metrics_fn = compute_yolo_detection_golden_run_metrics
-            error_run_fn = partial(yolo_detection_error_run, model=model, dataloader=loader)
-            error_run_metrics_fn = compute_yolo_detection_final_metrics
+            loader = getCOCO(os.path.join(data_dir, 'coco'), image_size, batch_size)
+            run_fn = partial(yolo_detection_run, model=model, dataloader=loader, image_size=image_size, batch_size=batch_size)
+            metrics_fn = partial(compute_yolo_detection_run_metrics, image_size=image_size)
 
         case 'deeplabv3_oxfordpet':
             from other_nets.segmentation.oxfordpet.models.deeplabv3 import get_deeplabv3

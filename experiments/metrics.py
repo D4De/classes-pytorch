@@ -2,11 +2,18 @@ import os
 import torch
 import numpy as np
 
+from math import sqrt
+from enum import Enum
 from threading import Thread, Lock
 from scipy.stats import kendalltau
 from ultralytics.engine.results import Results
 
 from classes.simulators.pytorch.pytorch_fault import PyTorchFault
+
+class ResultType(Enum):
+    MASKED: 0
+    SDC_SAFE: 1
+    SDC_CRITICAL: 2
 
 #--SINGLE METRICS--
 def accuracy_topk(scores: torch.Tensor, labels: torch.Tensor, k: int):
@@ -109,36 +116,43 @@ def iou_two_bboxes(predicted_box: list[float], golden_box: list[float]):
     if len(predicted_box) != 4 or len(golden_box) != 4:
         raise ValueError(f'Both boxes should be in the form [x_min, y_min, x_max, y_max], but {len(predicted_box)=} and {len(golden_box)=}')
     
-    def computeArea(coords):
-        if coords[2] >= coords[0] and coords[3] >= coords[1]:
-            return (coords[2]-coords[0])*(coords[3]-coords[1])
-        return 0
+    x1, y1, x2, y2 = predicted_box
+    x1g, y1g, x2g, y2g = golden_box
 
-    intersection_coords = []
-    # x_min
-    if predicted_box[0] > golden_box[0]:
-        intersection_coords.append(predicted_box[0]) # predicted's left edge is to the right of golden's left side
-    else:
-        intersection_coords.append(golden_box[0]) # predicted's left edge is to the left of golden's left edge
-    # y_min
-    if predicted_box[1] > golden_box[1]:
-        intersection_coords.append(predicted_box[1]) # predicted's top edge is under golden's top edge
-    else:
-        intersection_coords.append(golden_box[1]) # predicted's top edge is over golden's top edge
-    # x_max
-    if predicted_box[2] < golden_box[2]:
-        intersection_coords.append(predicted_box[2]) # predicted's right edge is to the left of golden's right edge
-    else:
-        intersection_coords.append(golden_box[2]) # predicted's right edge is to the right of golden's right edge
-    # y_max
-    if predicted_box[3] < golden_box[3]:
-        intersection_coords.append(predicted_box[3]) # predicted's bottom edge is over golden's bottom edge
-    else:
-        intersection_coords.append(golden_box[3]) # predicted's bottom edge is under golden's bottom edge
+    xi1 = max(x1, x1g)
+    yi1 = max(y1, y1g)
+    xi2 = min(x2, x2g)
+    yi2 = min(y2, y2g)
 
-    intersection_area = computeArea(intersection_coords)
-    union_area = computeArea(predicted_box) + computeArea(golden_box) - intersection_area
-    return float(intersection_area)/union_area
+    inter_area = max(0, xi2 - xi1) * max(0, yi2 - yi1)
+
+    area1 = (x2 - x1) * (y2 - y1)
+    area2 = (x2g - x1g) * (y2g - y1g)
+    union_area = area1 + area2 - inter_area
+
+    return inter_area / union_area
+
+
+def center_distance_two_bboxes(box1: list[float], box2: list[float]):
+    """
+    Computes the euclidean distance between the centers of two bounding boxes.
+    The boxes should be two lists with the form [x_min, y_min, x_max, y_max].
+    """
+    if len(box1) != 4 or len(box2) != 4:
+        raise ValueError(f'Both boxes should be in the form [x_min, y_min, x_max, y_max], but {len(box1)=} and {len(box2)=}')
+    
+    x1, y1, x2, y2 = box1
+    x1o, y1o, x2o, y2o = box2
+
+    # compute coordinates of the two centers
+    xc1 = (x1 + x2) / 2
+    yc1 = (y1 + y2) / 2
+    xc2 = (x1o + x2o) / 2
+    yc2 = (y1o + y2o) / 2
+
+    # compute distance
+    distance2 = (xc1 - xc2)**2 + (yc1 - yc2)**2
+    return sqrt(distance2)
 
 
 def yolo_coco_evaluate_golden(ground_truth: list[dict], predictions: Results, iou_threshold=0.5):
@@ -151,7 +165,7 @@ def yolo_coco_evaluate_golden(ground_truth: list[dict], predictions: Results, io
     This function compares the predictions with the ground truth by computing the IOU metric for each pair of bounding boxes.
     The evaluation outputs the number of true positives, false positives and false negatives.
     """
-    TP = FP = FN = 0
+    TP = 0
     matched_true_indices = [] # true boxes that are matched are subsequently ignored
 
     predicted_classes, predicted_coords = predictions.boxes.cls.tolist(), predictions.boxes.xyxy.tolist()
@@ -161,80 +175,119 @@ def yolo_coco_evaluate_golden(ground_truth: list[dict], predictions: Results, io
         max_iou = None
         matched_true_index = None
 
-        # find true boxes that match the class id
+        # iterate through the true boxes and find the one with maximum iou
         for i, true_result in enumerate(ground_truth):
             if i in matched_true_indices: # skip if the box was matched already
                 continue
+            
+            true_xyxy = true_result['bbox']
 
-            true_id = int(true_result['category_id'])
+            # compute iou
+            iou = iou_two_bboxes(pred_xyxy, true_xyxy)
 
+            if max_iou == None or iou > max_iou:
+                # iou is the best one so far: update
+                max_iou = iou
+                matched_true_index = i
+
+        if max_iou != None and max_iou >= iou_threshold: # found a match for the bounding box
+            # get the class id of the matched box
+            true_id = int(ground_truth[matched_true_index]['category_id'])
+
+            # if the ids match, true positive
             if int(pred_class) == true_id:
-                true_xywh = true_result['bbox']
-                # bounding boxes provided by CocoDetection use the form xywh: transform to xyxy
-                true_xyxy = [
-                    true_xywh[0], # x_min
-                    true_xywh[1], # y_min
-                    true_xywh[0] + true_xywh[2], # x_max
-                    true_xywh[1] + true_xywh[3], # y_max
-                ]
-                # compute iou
-                iou = iou_two_bboxes(pred_xyxy, true_xyxy)
+                matched_true_indices.append(matched_true_index)
+                TP += 1
 
-                if max_iou == None or iou > max_iou:
-                    # iou is the best one so far: update
-                    max_iou = iou
-                    matched_true_index = i
-
-        if max_iou != None and max_iou >= iou_threshold:
-            # found a match for the bounding box
-            matched_true_indices.append(matched_true_index)
-            TP += 1
-    
     FP = len(predicted_classes) - TP # these are the predicted boxes that were not matched
     FN = len(ground_truth) - len(matched_true_indices) # these are the golden boxes that were not matched
 
     return TP, FP, FN
 
 
-def yolo_coco_evaluate_corrupted(golden: Results, corrupted: Results, iou_threshold=0.5):
-    TP = FP = FN = 0
-    matched_golden_indices = [] # golden boxes that are matched are subesequently ignored
+def yolo_coco_evaluate_corrupted(
+    golden: Results, corrupted: Results,
+    max_box_distance: float, box_distance_tolerance: float, iou_threshold=0.5
+):
+    TP = 0
+    matched_golden_indices = [] # golden boxes that are matched are subsequently ignored
+    mismatched_label_found = False
+    # track the matched corrupted box with the highest confidence
+    max_corrupted_confidence = None
+    max_corrupted_confidence_box_coords = max_corrupted_confidence_golden_box_coords = None
 
-    golden_classes, golden_coords = golden.boxes.cls.tolist(), golden.boxes.xyxy.tolist()
+    golden_boxes = golden.boxes
+    golden_classes, golden_coords = golden_boxes.cls.tolist(), golden_boxes.xyxy.tolist()
 
     corrupted_boxes = corrupted.boxes
-    corrupted_classes, corrupted_coords = corrupted_boxes.cls.tolist(), corrupted_boxes.xyxy.tolist()
+    corrupted_classes, corrupted_coords, corrupted_conf = corrupted_boxes.cls.tolist(), corrupted_boxes.xyxy.tolist(), corrupted_boxes.conf.tolist()
+    
+    # first handle cases in which there are no golden boxes or no corrupted boxes
+    if not golden_classes and not corrupted_classes: # both are empty: masked
+        return 0, 0, 0, ResultType.MASKED
+
+    if not golden_classes or not corrupted_classes: # one is empty, the other is not: critical
+        return 0, 0, 0, ResultType.SDC_CRITICAL
+
 
     # iterate through the predicted boxes
-    for corrupted_class, corrupted_xyxy in zip(corrupted_classes, corrupted_coords):
+    for corrupted_class, corrupted_xyxy, corr_conf in zip(corrupted_classes, corrupted_coords, corrupted_conf):
         max_iou = None
         matched_golden_index = None
 
         # find golden boxes that match the class id
-        for i, golden_class in enumerate(golden_classes):
+        for i, g_coords in enumerate(golden_coords):
             if i in matched_golden_indices: # skip if the box was matched already
                 continue
 
-            if int(golden_class) == int(corrupted_class):
-                golden_xyxy = golden_coords[i]
+            # compute iou
+            iou = iou_two_bboxes(corrupted_xyxy, g_coords)
 
-                # compute iou
-                iou = iou_two_bboxes(corrupted_xyxy, golden_xyxy)
+            if max_iou == None or iou > max_iou:
+                # iou is the best one so far: update
+                max_iou = iou
+                matched_golden_index = i
 
-                if max_iou == None or iou > max_iou:
-                    # iou is the best one so far: update
-                    max_iou = iou
-                    matched_golden_index = i
+        if max_iou != None and max_iou >= iou_threshold: # found a match for the bounding box
+            # get class id of the matched box
+            matched_id = int(golden_classes[matched_golden_index])
 
-        if max_iou != None and max_iou >= iou_threshold:
-            # found a match for the bounding box
-            matched_golden_indices.append(matched_golden_index)
-            TP += 1
+            # if the ids match, true positive
+            if int(corrupted_class) == matched_id:
+                matched_golden_indices.append(matched_golden_index)
+                TP += 1
+                # if this is the box with the highest confidence so far, keep track of the coordinates
+                if max_corrupted_confidence is None or corr_conf > max_corrupted_confidence:
+                    max_corrupted_confidence = corr_conf
+                    max_corrupted_confidence_box_coords = corrupted_xyxy
+                    max_corrupted_confidence_golden_box_coords = golden_coords[matched_golden_index]
+
+            else:
+                # box matches, but label does not
+                mismatched_label_found = True
     
     FP = len(corrupted_classes) - TP # these are the predicted boxes that were not matched
     FN = len(golden_classes) - len(matched_golden_indices) # these are the golden boxes that were not matched
 
-    return TP, FP, FN
+    # determine type of result
+    result = ResultType.SDC_CRITICAL
+
+    # at this point, we know that there is at least one true box; the result may be non-critical only if at least one
+    # box was successfully detected
+    if TP > 0:
+        # compute the distance between the matched box with the highest confidence score and its golden match
+        max_conf_distance = center_distance_two_bboxes(max_corrupted_confidence_box_coords, max_corrupted_confidence_golden_box_coords)
+        # normalize the distance
+        max_conf_distance = max_conf_distance / max_box_distance
+
+        if TP == len(golden_classes) and not mismatched_label_found: # all boxes match and all labels are correct
+            if max_conf_distance < box_distance_tolerance: # distance is close enough to 0
+                result = ResultType.MASKED
+            elif max_conf_distance < 0.05: # distance is within safe range
+                result = ResultType.SDC_SAFE
+            # otherwise, result is critical
+
+    return TP, FP, FN, result
 
 
 
@@ -615,51 +668,89 @@ def compute_segmentation_single_metrics(
 
 
 
-def compute_yolo_detection_final_metrics(
-    csv_writer, metrics_dict, module_name: str, error_number: int, fault: PyTorchFault,
-    error_results, golden_results,
-    tolerance: float=0.5, num_threads: int = 4,
+def compute_yolo_detection_run_metrics(
+    results, layer_metrics_dict: dict,
+    csv_writer, module_name: str, error_number: int, fault: PyTorchFault,
+    tolerance: float, outputs_path: str, image_size: int, compute_single_metrics: bool = False, num_threads: int = 4,
 ):
     """
-    Note: tolerance is used as the IOU threshold.
+    Note: tolerance is used as the maximum possible box distance for masking.
+    The image size is used to determine the maximum possible box distance, which is then used to normalize the box distances.
     """
-    error_predictions = error_results
-    golden_predictions, ground_truth, other_info = golden_results
+    golden_results, targets, error_results = results
 
+    # transform target boxes' coordinates to xyxy
+    for target in targets:
+        target_xywh = target['bbox']
+        # bounding boxes provided by CocoDetection use the form xywh
+        target['bbox'] = [
+            target_xywh[0], # x_min
+            target_xywh[1], # y_min
+            target_xywh[0] + target_xywh[2], # x_max
+            target_xywh[1] + target_xywh[3], # y_max
+        ]
+
+    # the images are assumed to be square, so the maximum possible distance is the length of the diagonal
+    max_possible_box_distance = image_size * sqrt(2)
+
+    # Reminder: the csv header is 
+    #['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Precision', 'Recall']
+    csv_fields = [module_name, error_number, str(fault.spatial_pattern_name)]
+    csv_rows = []
+
+    total_precision = total_recall = 0.0
+    num_samples = 0
+
+    # golden metrics
+    for batch_prediction, batch_truth in zip(golden_results, targets):
+        num_samples += len(batch_prediction)
+
+        for single_prediction, single_truth in zip(batch_prediction, batch_truth):
+            TP, FP, FN = yolo_coco_evaluate_golden(single_truth, single_prediction)
+            total_precision += TP / (TP + FP)
+            total_recall += TP / (TP + FN)
+
+    avg_precision = float(total_precision/num_samples)
+    avg_recall = float(total_recall/num_samples)
+
+    layer_metrics_dict[module_name][error_number]['Average golden precision'] = avg_precision
+    layer_metrics_dict[module_name][error_number]['Average golden recall'] = avg_recall
+
+    # error metrics
     num_masked = num_sdc_safe = num_sdc_critical = 0
     total_TP, total_FP, total_FN = 0
 
-    current_index = 0
-
-    for batch_prediction, batch_golden in zip(error_predictions, golden_predictions):
+    for batch_prediction, batch_golden in zip(error_results, golden_results):
         for single_prediction, single_golden in zip(batch_prediction, batch_golden):
-            TP, FP, FN = yolo_coco_evaluate_corrupted(single_golden, single_prediction, tolerance)
+            TP, FP, FN, result = yolo_coco_evaluate_corrupted(single_golden, single_prediction, max_possible_box_distance, tolerance)
             
-            if TP == len(single_golden):
-                # all bounding boxes were matched closely enough: consider this masked
+            if result ==  ResultType.MASKED:
                 num_masked += 1
             else:
-                if TP > tolerance * len(single_golden):
-                    # a fraction of at least 'tolerance' of the boxes is correct: consider safe
+                if result == ResultType.SDC_SAFE: 
                     num_sdc_safe += 1
-                else:
+                    csv_type = 'True'
+                elif result == ResultType.SDC_CRITICAL: 
                     num_sdc_critical += 1
+                    csv_type = 'False'
 
-                csv_fields = [module_name, error_number]
-                csv_fields.append(current_index)
-                csv_fields.append(fault.spatial_pattern_name)
-                csv_fields.append(TP / (TP + FP)) # precision
-                csv_fields.append(TP / (TP + FN)) # recall
-                csv_writer.writerow(csv_fields)
+                if compute_single_metrics:
+                    precision = TP / (TP + FP) if (TP + FP) != 0 else 0.0
+                    recall = TP / (TP + FN) if (TP + FN) != 0 else 0.0
+                    csv_rows.append(csv_fields + [csv_type, precision, recall])
+                else:
+                    #TODO implement results saving
+                    pass
 
                 total_TP += TP
                 total_FP += FP
                 total_FN += FN
 
-                current_index += 1
+    if compute_single_metrics:
+        csv_writer.writerows(csv_rows)
 
     # save results for the fault
-    metrics_dict[module_name][error_number]['Precision'] = total_TP / (total_TP + total_FP)
-    metrics_dict[module_name][error_number]['Recall'] = total_TP / (total_TP + total_FN)
+    layer_metrics_dict[module_name][error_number]['Precision'] = total_TP / (total_TP + total_FP) if (total_TP + total_FP) != 0 else 0.0
+    layer_metrics_dict[module_name][error_number]['Recall'] = total_TP / (total_TP + total_FN) if (total_TP + total_FN) != 0 else 0.0
 
     return num_masked, num_sdc_safe, num_sdc_critical

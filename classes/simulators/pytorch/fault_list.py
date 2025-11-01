@@ -459,7 +459,7 @@ class PyTorchFaultListDynamic:
         for in_sample, _ in dataloader: break
         if isinstance(in_sample, torch.Tensor):
             self.input_shape = in_sample.shape
-        elif isinstance(in_sample, tuple[Image.Image]):
+        elif isinstance(in_sample, tuple): # tuple of PIL images
             width, height = in_sample[0].size
             self.input_shape = torch.Size([len(in_sample), 3, height, width]) # build input shape according to PIL Image shape
         self.input_sample = in_sample
@@ -477,6 +477,7 @@ class PyTorchFaultListDynamic:
             module_filter_fn=self.module_filter_fn,
             device=device
         )
+        exit()
         for module_name, shapes in self.module_shapes.items():
             logger.info(f'Module {module_name}:\n' \
                         f'\tOutput shape is {shapes[0]}\n' \

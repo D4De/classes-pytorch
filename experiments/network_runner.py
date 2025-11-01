@@ -146,6 +146,54 @@ def segmentation_run(
     return golden_out, ground_truth, error_out
 
 
+def yolo_detection_run(
+    model: YOLO,
+    dataloader: torch.utils.data.DataLoader,
+    injected_module: torch.nn.Module,
+    error_simulator_pytorch_hook,
+    use_single_batch=True,
+    image_size=128,
+    batch_size=64,
+):
+    with open('other_nets/detection/coco/cocodetection_ids_to_ultralytics_ids.yaml') as f:
+        id_mapping = yaml.load(f, yaml.SafeLoader)
+
+    if use_single_batch:
+        for imgs, targets in dataloader: break
+        with torch.no_grad():
+            results = model.predict(imgs, imgsz=image_size, device=0, batch=len(imgs), verbose=False)
+
+        # target is a list of dictionaries, each describing a bounding box. The 'category_id' entry is used as the label
+        # for the box, but those ids actually correspond to the original COCO annotations and do not line up with the ids used
+        # by Ultralytics, thus causing evaluation errors. This needs to be fixed by mapping to the proper ids.
+        for target_item in targets:
+            target_item['category_id'] = id_mapping[target_item['category_id']]
+
+        with applied_hook(injected_module, error_simulator_pytorch_hook), torch.no_grad():
+            error_results = model.predict(imgs, imgsz=image_size, device=0, batch=len(imgs), verbose=False)
+
+    else:
+        golden_results = []
+        targets = []
+        error_results = []
+
+        with torch.no_grad():
+            for imgs, target in tqdm(dataloader, desc='Performing golden run', colour='yellow'):
+                results = model.predict(imgs, imgsz=image_size, device=0, batch=batch_size, verbose=False)
+                golden_results.append(results)
+
+                for target_item in target:
+                    target_item['category_id'] = id_mapping[target_item['category_id']]
+                targets.append(target)
+
+        with applied_hook(injected_module, error_simulator_pytorch_hook), torch.no_grad():
+            for imgs, _ in tqdm(dataloader, colour='red'):
+                results = model.predict(imgs, imgsz=image_size, device=0, batch=batch_size, verbose=False)
+                error_results.append(results)
+    
+    return golden_results, targets, error_results
+
+
 #--GOLDEN RUNS--
 def classification_golden_run(
         model: torch.nn.Module,

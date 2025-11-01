@@ -76,7 +76,7 @@ def module_shape_profiler(
     if isinstance(input_data, torch.Tensor):
         input_data = input_data.to(device)
 
-    # Store the handles to remove the hook after the profiling
+    # Store the handles to remove the hooks after the profiling
     hook_handles: List[RemovableHandle] = []
     try:    
         for name, mod in module.named_modules():
