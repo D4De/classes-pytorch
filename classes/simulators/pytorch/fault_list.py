@@ -477,7 +477,6 @@ class PyTorchFaultListDynamic:
             module_filter_fn=self.module_filter_fn,
             device=device
         )
-        exit()
         for module_name, shapes in self.module_shapes.items():
             logger.info(f'Module {module_name}:\n' \
                         f'\tOutput shape is {shapes[0]}\n' \
