@@ -50,9 +50,9 @@ if __name__ == '__main__':
         first_micro_tile = first_macro_tile_log['core']['tile-0']
 
         # tile sizes
-        feature_tile_size = first_micro_tile['mems']['dat']
-        output_tile_size = first_micro_tile['mems']['out']
-        weight_tile_size = first_micro_tile['mems']['wt']
+        feature_tile_size = first_micro_tile['mems']['dat']['size']
+        output_tile_size = first_micro_tile['mems']['out']['size']
+        weight_tile_size = first_micro_tile['mems']['wt']['size']
 
         # single tile time
         tile_time = first_micro_tile['tile-time']
