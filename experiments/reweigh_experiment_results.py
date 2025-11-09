@@ -55,7 +55,8 @@ if __name__ == '__main__':
         sdc_safe_freq = float(sdc_safe / total)
         sdc_critical_freq = float(sdc_critical / total)
 
-        masked_adj = masked_freq * time_exposure
+         # time_exposure is the probability of SEU, so we must reweigh Masked using the complementary probability
+        masked_adj = masked_freq * (1.0 - time_exposure)
         sdc_safe_adj = sdc_safe_freq * time_exposure
         sdc_critical_adj = sdc_critical_freq * time_exposure
         total_sdc_freq = sdc_safe_adj + sdc_critical_adj
@@ -78,4 +79,4 @@ if __name__ == '__main__':
     
     if not output_path.endswith('.csv'):
         output_path = output_path + '.csv'
-    df.to_csv(output_path, index=False)
+    df.to_excel(output_path, index=False)
