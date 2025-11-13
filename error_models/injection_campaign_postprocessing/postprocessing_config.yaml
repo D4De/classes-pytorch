@@ -1,0 +1,12 @@
+outputs_base_path: ''
+final_output_dir: ''
+step1_output_filename: ''
+nvdla_config_id: ''
+networks_and_layers:
+  net1:
+    - 'layer1'
+    - 'layer2'
+network_input_sizes:
+  - 32
+  - 64
+ignore_incomplete_layers: False

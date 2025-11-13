@@ -7,6 +7,7 @@ def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('experiment_report_path', help='Filepath to the YAML experiment report produced by the simulation.')
     parser.add_argument('hw_config_id', help='Name of the hardware configuration from which the error models were obtained.')
+    parser.add_argument('hw_precision', help='Example: int8.')
     parser.add_argument('output_path', help='Filepath to save the resulting dictionary to.')
     return vars(parser.parse_args())
 
@@ -21,6 +22,7 @@ if __name__ == '__main__':
         raise ValueError(f'Experiment report at {report_path} does not exist.')
 
     hw_config_name = args['hw_config_id']
+    hw_precision = args['hw_precision']
     output_path = os.path.realpath(args['output_path'])
 
     # open report
@@ -34,9 +36,11 @@ if __name__ == '__main__':
 
     output_dict = {
         hw_config_name: {
-            network_id: {
-                'input_samples': batch_size,
-                'errors_per_layer': num_errors,
+            hw_precision: {
+                network_id: {
+                    'input_samples': batch_size,
+                    'errors_per_layer': num_errors,
+                }
             }
         }
     }
@@ -46,6 +50,7 @@ if __name__ == '__main__':
     for layer_name, layer_data in report_dict['Error simulation data']['Per-layer statistics'].items():
         layers_dict[layer_name] = {}
         spatial_classes_dict = {} # maps spatial classes to tuples of shape (num_masked, sdc_safe, sdc_critical)
+        total_masked = total_sdc_safe = total_sdc_critical = 0
 
         # layer_data is another dictionary whose keys are error numbers; we are only interested in the values
         for error_data in layer_data.values():
@@ -53,6 +58,10 @@ if __name__ == '__main__':
             sdc_safe = error_data['SDC safe']
             sdc_critical = error_data['SDC critical']
             spatial_class = error_data['Spatial class']
+
+            total_masked += masked
+            total_sdc_safe += sdc_safe
+            total_sdc_critical += sdc_critical
 
             if spatial_class in spatial_classes_dict:
                 new_total = sum_number_tuples(spatial_classes_dict[spatial_class], (masked, sdc_safe, sdc_critical))
@@ -73,8 +82,14 @@ if __name__ == '__main__':
                 'sdc_critical': sdc_critical_freq,
             }
 
-    output_dict[hw_config_name][network_id]['layer_results'] = layers_dict
+        # add absolute frequencies to layer
+        layer_total = total_masked + total_sdc_safe + total_sdc_critical
+        layers_dict[layer_name]['prob_masked'] = float(total_masked/layer_total)
+        layers_dict[layer_name]['prob_sdc_safe'] = float(total_sdc_safe/layer_total)
+        layers_dict[layer_name]['prob_sdc_critical'] = float(total_sdc_critical/layer_total)
+
+    output_dict[hw_config_name][hw_precision][network_id]['layer_results'] = layers_dict
 
     # save final dictionary
     with open(output_path, 'w') as f:
-        yaml.dump(output_dict, f)
+        yaml.dump(output_dict, f, sort_keys=False)

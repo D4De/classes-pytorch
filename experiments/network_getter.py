@@ -16,7 +16,7 @@ available = {
     'deeplabv3_oxfordpet': NetworkInfo('Segmentation',    3, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'mIOU', 'Precision', 'Recall']),
 }
 
-def get_network_and_exp_functions(id: str, batch_size: int, device):
+def get_network_and_exp_functions(id: str, batch_size: int, device, return_model_only=False):
     """id must be in the form 'networkname_datasetname'"""
     
     # find corresponding network tuple among the available ones
@@ -34,9 +34,10 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             from experiments.network_runner import classification_run
             from experiments.metrics import compute_classification_run_metrics
             model = get_model(os.path.join(weights_dir, 'resnet50', 'fp32_res50_cifar10.pth'))
-            _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
-            run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
-            metrics_fn = compute_classification_run_metrics
+            if not return_model_only:
+                _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
+                run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
+                metrics_fn = compute_classification_run_metrics
 
         case 'alexnet_cifar10':
             from nets_repo.classification.cifar10.models.alexnet import AlexNet
@@ -45,9 +46,10 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             from experiments.metrics import compute_classification_run_metrics
             model = AlexNet()
             model.load_state_dict(torch.load(os.path.join(weights_dir, 'alexnet', 'fp32_alexnet_cifar10.pth')))
-            _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
-            run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
-            metrics_fn = compute_classification_run_metrics
+            if not return_model_only:
+                _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
+                run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
+                metrics_fn = compute_classification_run_metrics
 
         case 'mobilenetv2_gtsrb':
             from other_nets.classification.gtsrb.models.mobilenetv2 import get_mobilenetv2_model
@@ -55,9 +57,10 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             from experiments.network_runner import classification_run
             from experiments.metrics import compute_classification_run_metrics
             model = get_mobilenetv2_model(43, os.path.join(weights_dir, 'mobilenetv2', 'mobilenetv2_gtsrb_best.pth'))
-            loader = getGTSRB(os.path.join(data_dir, 'gtsrb'), batch_size, 0)
-            run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
-            metrics_fn = compute_classification_run_metrics
+            if not return_model_only:
+                loader = getGTSRB(os.path.join(data_dir, 'gtsrb'), batch_size, 0)
+                run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
+                metrics_fn = compute_classification_run_metrics
 
         case 'yolov11_coco':
             from other_nets.detection.coco.models.yolov11.yolov11 import get_yolov11
@@ -66,9 +69,10 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             from experiments.metrics import compute_yolo_detection_run_metrics
             image_size: int = 128
             model = get_yolov11(os.path.join(weights_dir, 'yolov11'))
-            loader = getCOCO(os.path.join(data_dir, 'coco'), image_size, batch_size)
-            run_fn = partial(yolo_detection_run, model=model, dataloader=loader, image_size=image_size, batch_size=batch_size)
-            metrics_fn = partial(compute_yolo_detection_run_metrics, image_size=image_size)
+            if not return_model_only:
+                loader = getCOCO(os.path.join(data_dir, 'coco'), image_size, batch_size)
+                run_fn = partial(yolo_detection_run, model=model, dataloader=loader, image_size=image_size, batch_size=batch_size)
+                metrics_fn = partial(compute_yolo_detection_run_metrics, image_size=image_size)
 
         case 'deeplabv3_oxfordpet':
             from other_nets.segmentation.oxfordpet.models.deeplabv3 import get_deeplabv3
@@ -76,10 +80,14 @@ def get_network_and_exp_functions(id: str, batch_size: int, device):
             from experiments.network_runner import segmentation_run
             from experiments.metrics import compute_segmentation_run_metrics
             model = get_deeplabv3(os.path.join(weights_dir, 'deeplabv3', 'deeplabv3_pet_0.7500.pt'))
-            loader = get_oxfordpet(os.path.join(data_dir, 'oxfordpet'), batch_size, 0)
-            run_fn = partial(segmentation_run, model=model, dataloader=loader, device=device)
-            metrics_fn = partial(compute_segmentation_run_metrics, num_classes=network_info.num_classes)
+            if not return_model_only:
+                loader = get_oxfordpet(os.path.join(data_dir, 'oxfordpet'), batch_size, 0)
+                run_fn = partial(segmentation_run, model=model, dataloader=loader, device=device)
+                metrics_fn = partial(compute_segmentation_run_metrics, num_classes=network_info.num_classes)
 
     model.eval()
     model.to(device=device)
+    if return_model_only:
+        return model
+
     return model, loader, network_info, run_fn, metrics_fn
