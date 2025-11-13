@@ -60,10 +60,31 @@ def build_hyperparameters_dataframe(networks_and_layers: dict, input_sizes: list
 
     for network_entries, input_size in zip(networks_and_layers.items(), input_sizes):
         network_name, layers = network_entries
-        network = netget.get_network_and_exp_functions(network_name, 1, device, return_model_only=True)
+        # if network is already supplied by the getter, fetch it
+        if network_name in netget.available:
+            network = netget.get_network_and_exp_functions(network_name, 1, device, return_model_only=True)
+        else:
+            network = get_unlisted_network(network_name)
+
         network_dfs.append(get_network_hyperparameters(network, network_name, layers, input_size, device))
     
     return pd.concat(network_dfs)
+
+
+def get_unlisted_network(network_name: str):
+    match network_name:
+        case 'lenet_cifar10':
+            import nets_repo.classification.cifar10.models.lenet as lenet
+            return lenet.LeNet()
+        case 'vgg11_cifar10':
+            import nets_repo.classification.cifar10.models.vgg_11 as vgg
+            return vgg.VGG11CIFAR10()
+        case 'res18_cifar10':
+            import nets_repo.classification.cifar10.models.resnet as resnet
+            return resnet.ResNet18()
+        case _:
+            raise ValueError(f'Network {network_name} is not supported.')
+
 
 def get_network_hyperparameters(network: torch.nn.Module, network_name: str, layer_names: list[str], input_size: int, device):
     """Note: this function only works on convolutional layers. If other types of layers are passed in the names list, errors will
