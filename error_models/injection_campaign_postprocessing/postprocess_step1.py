@@ -99,7 +99,9 @@ def check_layers_and_adjust_models(config_dict: dict, initial_models_dir: str):
             error_model_filepath = os.path.join(classes_dir_path, json_files[0])
 
             # get layer output frequencies from campaignout
-            new_layer_df_row = utils.get_campaignout_last_row(campaignout_path, network, layer_name)
+            new_layer_df_row = pd.read_csv(campaignout_path).iloc[-1]
+            # set layer id
+            new_layer_df_row['Unit'] = f'{network}/{layer_name}'
             layer_df_rows.append(new_layer_df_row)
 
             # load the error model and update its frequencies
@@ -110,7 +112,32 @@ def check_layers_and_adjust_models(config_dict: dict, initial_models_dir: str):
                 json.dump(error_model, f)
 
     # build complete layer dataframe
-    layer_df = pd.DataFrame(layer_df_rows, index=['Layer'])
+    layer_df = pd.DataFrame(layer_df_rows)
+
+    # rename columns
+    layer_df.rename(columns={'Unit': 'Layer', 'Silent': 'SDC'}, inplace=True)
+    # sum crash and hang
+    layer_df['Crash+Hang'] = layer_df['SegFault'] + layer_df['Timeout']
+    layer_df.drop(['SegFault', 'Timeout'], inplace=True)
+
+    # drop columns of extra spatial classes
+    spatial_freqs = layer_df.drop(['Layer', 'Masked', 'SDC', 'Crash+Hang'])
+    for label in spatial_freqs.index:
+        if label not in utils.spatial_classes:
+            layer_df.drop(label, inplace=True)
+    
+    # add missing spatial classes
+    for label in utils.spatial_classes:
+        if label not in layer_df:
+            layer_df[label] = 0.0
+
+    # replace NaN with 0
+    layer_df.fillna(0.0, inplace=True)
+
+    # change column order
+    layer_df = layer_df.reindex(['Layer', 'Masked', 'SDC', 'Crash+Hang'] + utils.spatial_classes, axis=1)
+
+    layer_df.set_index('Layer', inplace=True)
     return layer_df
 
 

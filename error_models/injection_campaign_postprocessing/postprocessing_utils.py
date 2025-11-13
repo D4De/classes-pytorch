@@ -19,21 +19,6 @@ spatial_classes = [
     'Skip4',
 ]
 
-# campaignout.csv
-def get_campaignout_last_row(filepath: str, network_name: str, layer_name: str):
-    last_row = pd.read_csv(filepath).iloc[-1].copy()
-
-    # rename columns
-    last_row.rename({'Unit': 'Layer', 'Silent': 'SDC'}, inplace=True)
-    # set layer id
-    last_row['Layer'] = f'{network_name}/{layer_name}'
-    # sum crash and hang
-    last_row['Crash+Hang'] = last_row['SegFault'] + last_row['Timeout']
-    last_row.drop(['SegFault', 'Timeout'], inplace=True)
-
-    return last_row
-
-
 # error models
 def camelcase_to_snakecase(camel: str):
     return re.sub(r'(?<!^)(?=[A-Z])', '_', camel).lower()
@@ -42,8 +27,10 @@ def replace_error_model_frequencies(error_model_filepath: str, new_frequencies: 
     with open(error_model_filepath) as f:
         error_model = json.load(f)
     
-    # discard the first 4 items to get the spatial classes frequencies
-    for spatial_class, frequency in new_frequencies[4:].items():
+    # discard non-frequency items
+    new_frequencies_filtered = new_frequencies.drop(['Unit', 'Silent', 'SegFault', 'Timeout'])
+
+    for spatial_class, frequency in new_frequencies_filtered.items():
         spatial_class_snake = camelcase_to_snakecase(spatial_class)
         # it's possible that a spatial class is not in the error model because it was excluded
         if spatial_class_snake in error_model:
