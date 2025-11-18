@@ -1,9 +1,33 @@
 import re
-import json
+import os
+import yaml
 import torch
 import pandas as pd
 
 import experiments.network_getter as netget
+
+from argparse import ArgumentParser
+
+initial_models_dirname = 'initial_error_models'
+merged_models_dirname = 'merged_error_models'
+netcontent_dirname = 'netcontent_files'
+step1_output_filename = 'step1_complete_df.xlsx'
+step2_output_filename = 'step2_unique_complete_df.xlsx'
+step2_reconstruction_output_filename = 'step2_reconstruction_test_df.xlsx'
+
+hyperparameters = [
+    'Channels_in',
+    'Channels_out',
+    'Input_size',
+    'Kernel_size',
+    'Padding',
+]
+
+macroscopic_results = [
+    'Masked',
+    'SDC',
+    'Crash+Hang',
+]
 
 spatial_classes = [
     'Single',
@@ -19,24 +43,30 @@ spatial_classes = [
     'Skip4',
 ]
 
-# error models
+
+def load_config_dict():
+    parser = ArgumentParser()
+    parser.add_argument('config_filepath', help='Path to the postprocess configuration yaml file.')
+    args = parser.parse_args()
+
+    config_path = os.path.realpath(args.config_filepath)
+    if not os.path.exists(config_path):
+        raise ValueError(f'Configuration file at {config_path} does not exist.')
+    
+    with open(config_path) as f:
+        config_dict = yaml.load(f, yaml.SafeLoader)
+    
+    # check configuration consistency
+    networks_and_layers: dict = config_dict['networks_and_layers']
+    input_sizes: list = config_dict['network_input_sizes']
+    if len(networks_and_layers) != len(input_sizes):
+        raise ValueError(f'The dictionary of networks and the list of input sizes in the configuration file have different lengths.')
+
+    return config_dict
+
+
 def camelcase_to_snakecase(camel: str):
     return re.sub(r'(?<!^)(?=[A-Z])', '_', camel).lower()
-
-def replace_error_model_frequencies(error_model_filepath: str, new_frequencies: pd.Series) -> dict:
-    with open(error_model_filepath) as f:
-        error_model = json.load(f)
-    
-    # discard non-frequency items
-    new_frequencies_filtered = new_frequencies.drop(['Unit', 'Silent', 'SegFault', 'Timeout'])
-
-    for spatial_class, frequency in new_frequencies_filtered.items():
-        spatial_class_snake = camelcase_to_snakecase(spatial_class)
-        # it's possible that a spatial class is not in the error model because it was excluded
-        if spatial_class_snake in error_model:
-            error_model[spatial_class_snake]['frequency'] = frequency
-    
-    return error_model
 
 
 # network hyperparameters
@@ -59,6 +89,8 @@ def build_hyperparameters_dataframe(networks_and_layers: dict, input_sizes: list
 
 
 def get_unlisted_network(network_name: str):
+    """Network getter function for networks which are not covered by the standard network_getter."""
+
     match network_name:
         case 'lenet_cifar10':
             import nets_repo.classification.cifar10.models.lenet as lenet
@@ -92,7 +124,7 @@ def get_network_hyperparameters(network: torch.nn.Module, network_name: str, lay
     for layer_name in layer_names:
         layer = network.get_submodule(layer_name)
         df_rows.append([
-            f'{network_name}/{layer_name}',
+            f'{network_name}_{layer_name}',
             layer.in_channels,
             layer.out_channels,
             layer.kernel_size[0],
@@ -119,10 +151,3 @@ def get_network_hyperparameters(network: torch.nn.Module, network_name: str, lay
     # build dataframe
     hyper_df = pd.DataFrame(df_rows, columns=['Layer','Channels_in','Channels_out','Input_size','Kernel_size','Padding'])
     return hyper_df.set_index('Layer')
-
-
-# excel utilities
-def compute_zscores(complete_df: pd.DataFrame):
-    """Starting from the complete layer dataframe, builds a new one with the Z-score computed for each frequency column.
-    Also groups layer rows with the same hyperparameters and computes the Z-scores within each group. Returns both dataframes."""
-    pass
