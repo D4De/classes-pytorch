@@ -11,34 +11,39 @@ def merge_matching_layers(complete_df: pd.DataFrame, initial_models_dir: str, me
     model. Builds a new layer dataframe with each group replaced by its merged row. At the same time, the error models
     corresponding to the groups are also merged."""
     merged_model_index = 0
-    new_df_rows = []
     freq_cols = utils.macroscopic_results + utils.spatial_classes
 
-    for group_layers, group in complete_df.groupby(by=utils.hyperparameters):
+    for group_values, group in complete_df.groupby(by=utils.hyperparameters):
+        group_layers = group.index
         if len(group_layers) == 1:
-            # just one row, use it as-is
-            new_df_rows.append(group)
             # simply copy the model file to the output directory
             src_path = os.path.join(initial_models_dir, group_layers[0] + '.json')
             dst_path = os.path.join(merged_models_dir, group_layers[0] + '.json')
             shutil.copyfile(src_path, dst_path)
         else:
-            new_model_name = pd.Series({'Layer': f'merge{merged_model_index}'})
+            new_model_name = f'merge{merged_model_index}'
             merged_model_index += 1
 
             # extract hyperparameter columns from one of the group rows
             hyper_values = group.iloc[0][utils.hyperparameters]
 
+            # average the frequency columns
             freq_df = group[freq_cols]
             freq_averages = freq_df.mean()
 
-            new_df_rows.append(pd.concat([new_model_name, hyper_values, freq_averages]))
+            new_row = pd.concat([
+                hyper_values.astype(int),
+                freq_averages
+            ])
+
+            # drop group rows from the dataframe and substitute with the new row
+            complete_df.drop(group_layers, inplace=True)
+            complete_df.loc[new_model_name] = new_row
 
             # merge the error models of the group into a single one
-            merge_error_models(initial_models_dir, list(group_layers), merged_models_dir, new_model_name)
-    
-    # build unique complete dataframe
-    return pd.concat(new_df_rows, axis=1)
+            merge_error_models(initial_models_dir, group_layers, merged_models_dir, new_model_name)
+
+    return complete_df
 
 
 def merge_error_models(src_models_dir: str, model_names: list[str], output_models_dir: str, merged_model_name: str):
@@ -123,8 +128,8 @@ def model_reconstruction_test(unique_complete_df: pd.DataFrame, num_neighbors=5)
     For the Masked column only, the Z-score and IQR tests are performed: if both fail, the corresponding error model
     is considered unreconstructable and is signaled. The SDC column is almost exactly 1 - Masked, so the tests for one
     column also give information on the other."""
+    model_df = unique_complete_df.copy()
     # normalize hyperparameters
-    model_df = unique_complete_df.astype(float)
     for i, row in model_df.iterrows():
         hypers = row[utils.hyperparameters]
         h_min: float = hypers.min()
@@ -132,8 +137,7 @@ def model_reconstruction_test(unique_complete_df: pd.DataFrame, num_neighbors=5)
         normalized_hypers = (hypers - h_min) / (h_max - h_min)
         model_df.loc[i, utils.hyperparameters] = normalized_hypers
 
-    # save frequency distance rows to build an Excel file
-    frequency_distance_rows = []
+    distance_df = pd.DataFrame(columns=model_df.columns)
 
     # start reconstruction test
     for i, model_row in model_df.iterrows():
@@ -159,15 +163,11 @@ def model_reconstruction_test(unique_complete_df: pd.DataFrame, num_neighbors=5)
 
         # compute distances from the row
         freq_distances = (model_freq - avg_freq).abs()
-        frequency_distance_rows.append(pd.concat([
-            pd.Series({'Layer': i}),
-            model_hyper,
-            freq_distances
-        ]))
 
-    # build frequency distance dataframe
-    distance_df = pd.concat(frequency_distance_rows)
+        # add new row to distance dataframe
+        distance_df.loc[i] = pd.concat([model_hyper, freq_distances])
     
+
     # get Masked distances
     masked_col = distance_df['Masked']
 
@@ -187,10 +187,11 @@ def model_reconstruction_test(unique_complete_df: pd.DataFrame, num_neighbors=5)
     both_fail_col = zscore_fail_col & iqr_fail_col
 
     # add the three test columns to the distance dataframe
-    distance_df.loc[:, 'Masked_Zscore'] = zscore_col
-    distance_df.loc[:, 'Masked_outside_iqr_range'] = iqr_fail_col
-    distance_df.loc[:, 'Masked_failed_both'] = both_fail_col
+    distance_df['Masked_Zscore'] = zscore_col
+    distance_df['Masked_outside_iqr_range'] = iqr_fail_col
+    distance_df['Masked_failed_both'] = both_fail_col
 
+    distance_df.index.rename('Layer', inplace=True)
     return distance_df
 
 
@@ -206,7 +207,7 @@ if __name__ == '__main__':
     os.makedirs(merged_models_dir, exist_ok=True)
 
     # load complete layer dataframe from step 1
-    complete_df = pd.read_excel(step1_output_path, sheet_name=0, header=0)
+    complete_df = pd.read_excel(step1_output_path, sheet_name=0, header=0, index_col='Layer')
 
     # merge layers with the same hyperparameters and build final models dataframe
     unique_complete_df = merge_matching_layers(complete_df, initial_models_dir, merged_models_dir)

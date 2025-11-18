@@ -108,6 +108,7 @@ def build_layer_df_and_adjust_models(filepaths_dict: dict, initial_models_dir: s
     # rename columns
     layer_df.rename(columns={'Unit': 'Layer', 'Silent': 'SDC'}, inplace=True)
     layer_df.set_index('Layer', inplace=True)
+
     # sum crash and hang
     layer_df['Crash+Hang'] = layer_df['SegFault'] + layer_df['Timeout']
     layer_df.drop(columns=['SegFault', 'Timeout'], inplace=True)
@@ -126,8 +127,8 @@ def build_layer_df_and_adjust_models(filepaths_dict: dict, initial_models_dir: s
     # replace NaN with 0
     layer_df.fillna(0.0, inplace=True)
 
-    # change column order
-    layer_df = layer_df.reindex(columns=['Layer', 'Masked', 'SDC', 'Crash+Hang'] + utils.spatial_classes)
+    # change column order and set index
+    layer_df = layer_df.reindex(columns=['Masked', 'SDC', 'Crash+Hang'] + utils.spatial_classes)
 
     return layer_df
 
@@ -179,14 +180,15 @@ def compute_zscores(complete_df: pd.DataFrame):
             freq_col = freq_df[spatial_class_name]
             # compute z-scores for the column
             zscore_col = (freq_col - freq_col.mean()) / freq_col.std()
+            zscore_col.name = 'Z-' + zscore_col.name
 
             new_cols.append(freq_col)
             new_cols.append(zscore_col)
-        
+
         zscore_df = pd.concat([
             non_freq_df,
-            pd.DataFrame(new_cols).T(),
-        ])
+            pd.DataFrame(new_cols).T,
+        ], axis=1)
 
         return zscore_df
 
@@ -201,124 +203,6 @@ def compute_zscores(complete_df: pd.DataFrame):
     grouped_zscored_df = pd.concat(group_dfs)
 
     return complete_zscored_df, grouped_zscored_df
-
-
-
-# TODO: remove
-def check_layers_and_adjust_models(config_dict: dict, initial_models_dir: str):
-    """
-    Scans the output directories specified in the configuration file and checks if the layers are complete, i.e. if they've passed
-    the first phase of postprocessing and have a campaignout.csv and corresponding error model json file each.
-    If 'ignore_incomplete_layers' in the configuration file is set to False, it raises an error as soon as an incomplete layer is
-    found. Otherwise, it ignores any incomplete layer.
-    As a final check, each network output directory should contain a netcontent.yaml file, which is copied to the output directory.
-
-    If a network directory is ok, the error models' frequencies are adjusted and the results are saved to the initial models directory.
-    The campaignout files are used to build a dataframe with the output frequencies for each layer. This dataframe is returned,
-    so that it may be used for the following steps.
-    """
-    # postprocessing parameters
-    ignore_incomplete: bool = config_dict['ignore_incomplete_layers']
-    base_path = os.path.realpath(config_dict['outputs_base_path'])
-    nvdla_configuration = config_dict['nvdla_config_id']
-    networks_and_layers: dict = config_dict['networks_and_layers']
-
-    # outputs for this step
-    layer_df_rows = []
-
-    for network, layers in networks_and_layers.items():
-        network_dir = os.path.join(base_path, network, nvdla_configuration)
-        if not os.path.isdir(network_dir):
-            raise ValueError(f'Network output directory for {network} and config {nvdla_configuration} does not exist.')
-
-        # check netcontent.yaml
-        netcontent_path = os.path.join(network_dir, 'netcontent.yaml')
-        if not os.path.exists(netcontent_path):
-            raise ValueError(f'netcontent.yaml for network {network} does not exist.')
-        
-        # check individual layers
-        for layer_name in layers:
-            layer_path = os.path.join(network_dir, layer_name)
-            if not os.path.isdir(layer_path):
-                raise ValueError(f'Layer {layer_name} directory of network {network} does not exist.')
-            
-            layer_id = f'{network}_{layer_name}'
-
-            # check campaignout.csv
-            campaignout_path = os.path.join(layer_path, 'campaignout.csv')
-            if not os.path.exists(campaignout_path):
-                warning_msg = f'Layer {layer_name} of network {network} is missing its campaignout.csv file'
-                if ignore_incomplete:
-                    print(f'WARNING: {warning_msg} and will be skipped.')
-                    continue
-                else:
-                    raise ValueError(warning_msg)
-            
-            # check error model
-            classes_dir_path = os.path.join(layer_path, 'classes', 'classes')
-            if not os.path.isdir(classes_dir_path):
-                warning_msg = f'Layer {layer_name} of network {network} is missing the classes output directory'
-                if ignore_incomplete:
-                    print(f'WARNING: {warning_msg} and will be skipped.')
-                    continue
-                else:
-                    raise ValueError(warning_msg)
-                
-            json_files = list(filter(
-                lambda x: x.endswith('.json'),
-                os.listdir(classes_dir_path)
-            ))
-            if not json_files or len(json_files) > 1:
-                warning_msg = f'Layer {layer_name} of network {network} is missing the error model file or it has multiple json files'
-                if ignore_incomplete:
-                    print(f'WARNING: {warning_msg} and will be skipped.')
-                    continue
-                else:
-                    raise ValueError(warning_msg)
-            error_model_filepath = os.path.join(classes_dir_path, json_files[0])
-
-            # get layer output frequencies from campaignout
-            new_layer_df_row = pd.read_csv(campaignout_path).iloc[-1]
-            # set layer id
-            new_layer_df_row['Unit'] = layer_id
-            layer_df_rows.append(new_layer_df_row)
-
-            # load the error model and update its frequencies
-            error_model = replace_error_model_frequencies(error_model_filepath, new_layer_df_row)
-            # save adjusted error model to directory
-            error_model_name = layer_id + '.json'
-            with open(os.path.join(initial_models_dir, error_model_name), 'w') as f:
-                json.dump(error_model, f)
-
-    # build complete layer dataframe
-    layer_df = pd.DataFrame(layer_df_rows)
-
-    # rename columns
-    layer_df.rename(columns={'Unit': 'Layer', 'Silent': 'SDC'}, inplace=True)
-    layer_df.set_index('Layer', inplace=True)
-    # sum crash and hang
-    layer_df['Crash+Hang'] = layer_df['SegFault'] + layer_df['Timeout']
-    layer_df.drop(columns=['SegFault', 'Timeout'], inplace=True)
-
-    # drop columns of extra spatial classes
-    spatial_freqs = layer_df.drop(columns=['Masked', 'SDC', 'Crash+Hang'])
-    for label in spatial_freqs:
-        if label not in utils.spatial_classes:
-            layer_df.drop(columns=[label], inplace=True)
-    
-    # add missing spatial classes
-    for label in utils.spatial_classes:
-        if label not in layer_df:
-            layer_df[label] = 0.0
-
-    # replace NaN with 0
-    layer_df.fillna(0.0, inplace=True)
-
-    # change column order
-    layer_df = layer_df.reindex(columns=['Layer', 'Masked', 'SDC', 'Crash+Hang'] + utils.spatial_classes)
-
-    return layer_df
-
 
 
 if __name__ == '__main__':
