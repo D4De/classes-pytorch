@@ -2,10 +2,12 @@ import os
 import csv
 import yaml
 import torch
+import tarfile
 
 from classes.simulators.pytorch.fault_list import PyTorchFaultListDynamic, PyTorchFaultListDynamicMetadata
 from classes.simulators.pytorch.simulator_hook import create_simulator_hook
-from classes.simulators.pytorch.error_model_mapper import create_module_to_generator_mapper_dynamic
+from classes.simulators.pytorch.module_profiler import module_range_profiler, module_shape_profiler
+from classes.simulators.pytorch.error_model_mapper import load_error_models, map_layers_to_error_models
 from classes.simulators.pytorch.fault_list_datasets import FaultListFromTarFileDynamic
 
 import experiments.logger as logger
@@ -13,11 +15,12 @@ import experiments.experiment_utils as utils
 
 from experiments.args import parse_args
 from experiments.network_getter import get_network_and_exp_functions
+from experiments.results_to_dictionary import pack_report_dictionary
 
 
-if __name__ == '__main__':
+def main():
     #------------------------------------------------------------
-    # initial setup
+    # INITIAL SETUP
 
     experiment_dir, configuration_name, regenerate_faults = parse_args()
 
@@ -44,17 +47,34 @@ if __name__ == '__main__':
     # extract mandatory parameters from config
     key = 'experiment_name'
     try:
-        experiment_name         = config[key]
+        experiment_name: str          = config[key]
+
         key = 'network_dataset_id'
-        network_dataset_id      = config[key]
-        key = 'batch_size'
-        batch_size              = config[key]
+        network_dataset_id: str       = config[key]
+
+        key = 'hw_config_id'
+        hw_config_id: str             = config[key]
+
         key = 'error_models_path'
-        error_models_path       = os.path.realpath(config[key])
+        error_models_path: str        = os.path.realpath(config[key])
+
+        key = 'error_models_df_path'
+        error_models_df_path: str     = os.path.realpath(config[key])
+
+        key = 'batch_size'
+        batch_size: int               = config[key]
+
+        key = 'uniform_spatial_classes'
+        uniform_spatial_classes: bool = config[key]
+
         key = 'num_faults_per_module'
-        num_faults_per_module   = config[key]
+        num_faults_per_module: int    = config[key]
+
         key = 'fault_list_path'
-        fault_list_path         = os.path.realpath(config[key])
+        fault_list_path: str          = os.path.realpath(config[key])
+
+        key = 'SDC_frequency_dict_path'
+        SDC_frequency_dict_path: str = os.path.realpath(config[key])
     except KeyError:
         raise ValueError(f'Required key {key} in experiment configuration file is missing.')
 
@@ -73,25 +93,24 @@ if __name__ == '__main__':
 
     # prepare other directories if they don't exist
     outputs_dir = os.path.join(experiment_dir, 'outputs')
-    logs_dir = os.path.join(experiment_dir, 'logs')
+    logs_dir    = os.path.join(experiment_dir, 'logs')
     os.makedirs(outputs_dir, exist_ok=True)
     os.makedirs(logs_dir, exist_ok=True)
 
     # prepare logging
-    current_datetime = utils.get_stringified_datetime()
-    logfile_path = os.path.join(logs_dir, f'explog_{current_datetime}.txt')
-    exp_logger = logger.create_experiment_logger(__name__, logfile_path=logfile_path)
+    logfile_path = os.path.join(logs_dir, f'explog_{hw_config_id}_{num_faults_per_module}err_{batch_size}in.txt')
+    exp_logger   = logger.create_experiment_logger(__name__, logfile_path=logfile_path)
 
     exp_logger.info(f'Started experiment - id is {network_dataset_id}')
 
     # paths for the overall report and the error report
-    overall_report_path = os.path.join(outputs_dir, 'overall_report_' + current_datetime + '.yaml')
-    error_report_path = os.path.join(outputs_dir, 'error_report_' + current_datetime + '.csv')
+    overall_report_path = os.path.join(outputs_dir, f'overall_report_{hw_config_id}_{num_faults_per_module}err_{batch_size}in.yaml')
+    error_report_path   = os.path.join(outputs_dir, f'error_report_{hw_config_id}_{num_faults_per_module}err_{batch_size}in.csv')
 
     # start collecting overall report data
     experiment_report_data = {}
     experiment_report_data['Experiment name'] = experiment_name
-    experiment_report_data['Date and time'] = current_datetime
+    experiment_report_data['Date and time']   = utils.get_stringified_datetime()
 
     #------------------------------------------------------------
     # get device
@@ -114,144 +133,195 @@ if __name__ == '__main__':
     model_name, dataset_name = network_dataset_id.split('_')
 
     experiment_report_data['Dataset data'] = {
-        'Dataset name': dataset_name,
+        'Dataset name'     : dataset_name,
         'Number of samples': num_samples,
     }
 
-    experiment_report_data['Model name'] = model_name
-    experiment_report_data['Task'] = network_info.task
+    experiment_report_data['Model name']   = model_name
+    experiment_report_data['Task']         = network_info.task
     experiment_report_data['Num. classes'] = network_info.num_classes
 
     # collect a few other hyperparameters
     experiment_report_data['Experiment hyperparameters'] = {
-        'Batch size': batch_size,
-        'Injected errors per module': num_faults_per_module,
+        'Batch size'                         : batch_size,
+        'Injected errors per module'         : num_faults_per_module,
         'Tolerance value for tensor equality': tolerance
     }
     #------------------------------------------------------------
     # AN OVERVIEW OF THE EXPERIMENT PROCESS
-    # 1) The fault list for the current experiment is loaded or generated if not available.
+    # 1) The fault list for the current experiment is loaded or generated if not available. At the same time, the SDC frequencies for
+    # the layers are computed during fault generation and saved to a file.
     #
-    # 2) A golden run with no layer corruption is performed. The results of this first run, i.e. the output tensors (or analogous classes) and
-    # the corresponding labels/targets, are collected and saved to `golden_results`, which in general is a tuple that will be appropriately unpacked
-    # by the functions associated to the network under test, as provided by `network_getter.py`.
+    # 2) For each generated fault, the experiment run function is called; this function executes a golden run and the error run.
+    # The results are collected and returned.
     #
-    # 3) A golden run postprocessing function is called. This function takes the intermediate outputs of step 1 and processes them in some way.
-    # In the classification case, for example, the rankings corresponding to the golden scores are calculated, as well as metrics such as accuracy.
-    # If some intermediate results need to be saved for later, the postprocessing function returns them, so that they can be packed together with
-    # the previous results and used later. 
-    #
-    # 4) An error run is performed by injecting one fault at a time into the network and running the entire dataset through it.
-    # The results of this run are saved as `error_results` and will again be unpacked as needed later.
-    #
-    # 5) An error run postprocessing function is called. The function takes the golden results and the error ones, computes the appropriate
-    # metrics for each injection run and saves them, possibly along with other metadata. Regardless of the function implementation, it should
-    # always return the number of masked, sdc safe and sdc critical results for an injection.
+    # 3) The results are passed to the metrics calculation function, which determines which runs resulted in masking and which led
+    # to SDC (safe or critical). Depending on the configuration settings, metrics on the SDC results are directly calculated or the
+    # results are saved to file for later postprocessing.
+    # 
+    # 4) The overall results, both for the whole experiment and for the single layers, are gathered and saved to a final report. 
+    # The report's results for the single spatial classes for each layer are also computed and saved to a separate report.
 
+
+    #------------------------------------------------------------
+    # FAULT LIST GENERATION
     # if the fault list does not exist or regeneration was requested, create it now
     if regenerate_faults or not os.path.exists(fault_list_path):
         exp_logger.info(f'Fault List {fault_list_path} does not exist in the current folder or regeneration was requested.' \
             f' Generating a new one with {num_faults_per_module} faults per network layer.')
 
-        module_to_generator_mapping = create_module_to_generator_mapper_dynamic(
-            model_folder_path=error_models_path,
-            logger=exp_logger,
+        # step 1: define a filter function to extract injectable layers from the network and get those layers' names
+        layer_filter_fn = lambda x: isinstance(x, torch.nn.Conv2d)
+        layer_names: list[str] = []
+        for name, layer in model.named_modules():
+            if layer_filter_fn(layer):
+                layer_names.append(name)
+        exp_logger.info(f'Found a total of {len(layer_names)} injectable layers in the network')
+
+
+        # step 2: execute network profilation to obtain the layers' parameters
+        exp_logger.info('Starting network profilation')
+        for input_sample, _ in dataloader: break    # get an input sample for profilation
+        layer_shapes = module_shape_profiler(model, input_sample, layer_names, device)
+        layer_ranges = module_range_profiler(model, dataloader, layer_names, device)
+        # sanity check: the two dictionaries should have the same keys
+        if not layer_shapes.keys() == layer_ranges.keys():
+            raise KeyError(f'The keys for layer shapes and layer ranges do not match: {layer_shapes.keys()=}\n{layer_ranges.keys()=}')
+
+
+        # step 3: load error models and their parameters
+        exp_logger.info('Loading error models')
+        error_model_df, error_model_dicts = load_error_models(error_models_path, error_models_df_path)
+
+
+        # step 4: match each layer to its error model (existing or interpolated)
+        exp_logger.info('Mapping layers to error models')
+        layer_sdc_frequencies, layer_fault_generators = map_layers_to_error_models(
+            model, layer_names, layer_shapes, error_model_df, error_model_dicts, exp_logger
         )
         
+
+        # step 5: save SDC frequency dictionary for later postprocessing
+        exp_logger.info('Saving SDC frequency YAML file.')
+        if not SDC_frequency_dict_path.endswith('.yaml'):
+            SDC_frequency_dict_path = SDC_frequency_dict_path + '.yaml'
+        with open(SDC_frequency_dict_path, 'w') as f:
+            yaml.dump(layer_sdc_frequencies, f, sort_keys=False)
+
+
+        # step 6: generate fault list       
         fault_list = PyTorchFaultListDynamic(
-            model, 
-            dataloader,
-            module_filter_fn = lambda x: isinstance(x, torch.nn.Conv2d),
-            module_to_fault_generator_fn=module_to_generator_mapping,
-            device=device,
+            layer_names,
+            layer_shapes,
+            layer_ranges,
+            layer_fault_generators,
+            input_sample,
             logger=exp_logger,
         )
-        fault_list.generate_and_persist_fault_list(fault_list_path, num_faults_per_module, logger=exp_logger, overwrite=True)
+        fault_list.generate_and_persist_fault_list(
+            fault_list_path,
+            num_faults_per_module,
+            uniform_spatial_classes,
+            logger=exp_logger,
+            overwrite=True
+        )
     
-    # load the fault list metadata
-    exp_logger.info('Loading fault list')
-    fault_list_info = PyTorchFaultListDynamicMetadata.load_fault_list_info(fault_list_path)
-    
+
     #------------------------------------------------------------
     # START ERROR INJECTION
     # these total metrics are meaningless in terms of individual SEUs, they are just for report completeness
-    total_injected_errors = 0
-    total_masked = 0
-    total_sdc_safe = 0
-    total_sdc_critical = 0
+    total_injected_errors = total_masked = total_sdc_safe = total_sdc_critical = 0
 
     layer_metrics_dict = {} # this will store the final metrics for each layer/fault injection pair
 
-    # prepare csv log to store individual results for corrupted tensors
-    error_report_csv = open(error_report_path, 'w', newline='')
-    csv_writer = csv.writer(error_report_csv)
-    csv_writer.writerow(network_info.csv_header)
+    if compute_single_metrics:
+        # prepare csv log to store individual results for corrupted tensors
+        error_report_csv = open(error_report_path, 'w', newline='')
+        csv_writer = csv.writer(error_report_csv)
+        csv_writer.writerow(network_info.csv_header)
+    else:
+        error_report_csv = csv_writer = None
+
 
     timer = utils.Timer()
     timer.start()
 
-    for injectable_module_name in fault_list_info.injectable_layers:
-        layer_metrics_dict[injectable_module_name] = {}
-        module = model.get_submodule(injectable_module_name)
 
-        # build a fault dataset for each module, if a compatible fault generator is available
-        fault_list_dataset = FaultListFromTarFileDynamic(
-            fault_list_path, injectable_module_name
-        )
-        fault_list_loader = torch.utils.data.DataLoader(
-            fault_list_dataset,
-            batch_size=None,
-            num_workers=0,
-            pin_memory=True,
-        )
+    # load the fault list metadata and get relevant info
+    exp_logger.info('Loading relevant metadata from fault list')
+    fault_list_info = PyTorchFaultListDynamicMetadata.load_fault_list_info(fault_list_path)
+    if not layer_names:
+        layer_names = fault_list_info.injectable_layers
+    num_module_faults = fault_list_info.num_module_faults
 
-        exp_logger.info(f'Starting injection in module {injectable_module_name} of type {type(module).__name__}')
+    # open the tar fault list and start injecting
+    with tarfile.TarFile(fault_list_path, "r") as tarf:
 
-        # iterate through the fault dataset and inject
-        for fault_num, fault in enumerate(fault_list_loader):
-            layer_metrics_dict[injectable_module_name][fault_num] = {}
+        for injectable_module_name, module_num_faults in zip(layer_names, num_module_faults):
+            layer_metrics_dict[injectable_module_name] = {}
+            module = model.get_submodule(injectable_module_name)
 
-            exp_logger.info(f'Error {fault_num} | Spatial Pattern: {fault.spatial_pattern_name}')
-
-            fault.to(device=device)
-
-            # create the injection hook
-            error_simulator_pytorch_hook = create_simulator_hook(fault)
-
-            # perform run
-            results = run_fn(
-                injected_module=module,
-                error_simulator_pytorch_hook=error_simulator_pytorch_hook,
-                use_single_batch=use_single_batch,
+            # build a fault dataset for each module
+            fault_list_dataset = FaultListFromTarFileDynamic(
+                tarf,
+                injectable_module_name,
+                module_num_faults,
+                fault_list_info.fault_batch_size,
+            )
+            fault_list_loader = torch.utils.data.DataLoader(
+                fault_list_dataset,
+                batch_size=None,
+                num_workers=0,
+                pin_memory=True,
             )
 
-            # compute metrics
-            masked, sdc_safe, sdc_critical = metrics_fn(
-                results=results,
-                layer_metrics_dict=layer_metrics_dict,
-                csv_writer=csv_writer,
-                module_name=injectable_module_name,
-                error_number=fault_num,
-                fault=fault,
-                tolerance=tolerance,
-                outputs_path=outputs_dir,
-                compute_single_metrics=compute_single_metrics,
-                num_threads = num_threads,
-            )
+            exp_logger.info(f'Starting injection in module {injectable_module_name} of type {type(module).__name__}')
 
-            # save fault results for this layer
-            layer_metrics_dict[injectable_module_name][fault_num]['Masked'] = masked 
-            layer_metrics_dict[injectable_module_name][fault_num]['SDC safe'] = sdc_safe
-            layer_metrics_dict[injectable_module_name][fault_num]['SDC critical'] = sdc_critical
-            layer_metrics_dict[injectable_module_name][fault_num]['Spatial class'] = str(fault.spatial_pattern_name)
+            # iterate through the fault dataset and inject
+            for fault_num, fault in enumerate(fault_list_loader):
+                layer_metrics_dict[injectable_module_name][fault_num] = {}
 
-            total_masked += masked
-            total_sdc_safe += sdc_safe
-            total_sdc_critical += sdc_critical
-            
+                exp_logger.info(f'Error {fault_num} | Spatial Pattern: {fault.spatial_pattern_name}')
 
-        total_injected_errors += num_faults_per_module * num_samples
-    
+                fault.to(device=device)
+
+                # create the injection hook
+                error_simulator_pytorch_hook = create_simulator_hook(fault)
+
+                # perform run
+                results = run_fn(
+                    injected_module              = module,
+                    error_simulator_pytorch_hook = error_simulator_pytorch_hook,
+                    use_single_batch             = use_single_batch,
+                )
+
+                # compute metrics
+                masked, sdc_safe, sdc_critical = metrics_fn(
+                    results                = results,
+                    layer_metrics_dict     = layer_metrics_dict,
+                    csv_writer             = csv_writer,
+                    module_name            = injectable_module_name,
+                    error_number           = fault_num,
+                    fault                  = fault,
+                    tolerance              = tolerance,
+                    outputs_path           = outputs_dir,
+                    compute_single_metrics = compute_single_metrics,
+                    num_threads            = num_threads,
+                )
+
+                # save fault results for this layer
+                layer_metrics_dict[injectable_module_name][fault_num]['Masked']        = masked 
+                layer_metrics_dict[injectable_module_name][fault_num]['SDC safe']      = sdc_safe
+                layer_metrics_dict[injectable_module_name][fault_num]['SDC critical']  = sdc_critical
+                layer_metrics_dict[injectable_module_name][fault_num]['Spatial class'] = str(fault.spatial_pattern_name)
+
+                total_masked       += masked
+                total_sdc_safe     += sdc_safe
+                total_sdc_critical += sdc_critical
+                
+
+            total_injected_errors += num_faults_per_module * num_samples
+        
 
     # injection done for all modules
     timer.stop()
@@ -260,17 +330,31 @@ if __name__ == '__main__':
     exp_logger.info(f'Error simulation done - took {injection_runtime}')
 
     # finalize the csv report
-    error_report_csv.close()
+    if error_report_csv is not None:
+        error_report_csv.close()
 
     # add overall report data and save
     experiment_report_data['Error simulation data'] = {
-        'Total number of injected errors': total_injected_errors,
-        'Total number of masked errors': total_masked,
-        'Total number of safe SDCs': total_sdc_safe,
-        'Total number of critical SDCs': total_sdc_critical,
-        'Per-layer statistics': layer_metrics_dict,
-        'Error simulation runtime': injection_runtime,
+        'Total number of injected errors' : total_injected_errors,
+        'Total number of masked errors'   : total_masked,
+        'Total number of safe SDCs'       : total_sdc_safe,
+        'Total number of critical SDCs'   : total_sdc_critical,
+        'Per-layer statistics'            : layer_metrics_dict,
+        'Error simulation runtime'        : injection_runtime,
     }
+
+    exp_logger.info('Saving final reports')
 
     with open(overall_report_path, 'w') as overall_report_file:
         yaml.dump(experiment_report_data, overall_report_file, sort_keys=False)
+
+    # compute the total result frequencies (also divided by spatial class) and produce a second output file
+    aggregated_report = pack_report_dictionary(experiment_report_data)
+    aggregated_report_filename = f'applev_{model_name}_{dataset_name}_{hw_config_id}_{num_samples}in_{num_faults_per_module}err.yaml'
+    aggregated_report_filepath = os.path.join(experiment_dir, aggregated_report_filename)
+    with open(aggregated_report_filepath, 'w') as aggregated_report_file:
+        yaml.dump(aggregated_report, aggregated_report_file, sort_keys=False)
+
+
+if __name__ == '__main__':
+    main()

@@ -8,7 +8,7 @@ from .generator_utils import create_access_tuple, random_channels
 logger = logging.getLogger(__name__)
 
 
-def same_row_generator(
+def same_column_generator(
     output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
 ) -> np.ndarray:
     c_dim, h_dim, w_dim = layout.index("C"), layout.index("H"), layout.index("W")

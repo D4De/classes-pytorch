@@ -1,106 +1,86 @@
-from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, Optional, Sequence
-
-from classes.error_models.error_model import ErrorModel
-from classes.fault_generator.fault import Fault, FaultBatch
-from classes.value_generators.value_class_distribution import ValueClassDistribution
-from classes.pattern_generators import get_default_generators, PatternGenerator
-
 import numpy as np
 
+from typing import Mapping, Sequence
+from dataclasses import dataclass, field
+
+from classes.pattern_generators import get_default_generators, PatternGenerator
+from classes.fault_generator.fault import Fault, FaultBatch
+from classes.error_models.error_model import ErrorModel
 from classes.value_generators.value_class import ValueClass
 
 
 @dataclass
 class FaultGenerator:
     """
-    Generators of CLASSES Errors
+    Generator of CLASSES Errors.
     TODO: Rename this to ErrorGenerator
     """
+
     error_model: ErrorModel
     """
-    Error model object used for generating the errors.
+    Error model object used for generating errors.
     """
+
     generator_mapping: Mapping[str, PatternGenerator] = field(
         default_factory=get_default_generators
     )
     """
-    Maps the spatial_class to a PatternGenerator function (that generates the spatial distribution of the errors).\
-    If not specified uses the one in get_default_generators
+    Maps a spatial class name to a PatternGenerator function that generates the spatial distribution of the errors.
+    By default, uses the one in get_default_generators.
     """
+
     layout: str = "CHW"
     """
-    The layout of the tensor. Defaults to CHW (channel first)
-    NOTE: Not 100% sure that other layout work
-    """
-    fixed_spatial_class: Optional[str] = None
-    """
-    If specified, forces the generator to always use this spatial pattern class instead of sampling from the error model distribution.
-    If None, spatial pattern classes will be randomly sampled according to their frequency in the error model.
-    """
-    fixed_spatial_parameters: Optional[Dict[str, Any]] = None
-    """
-    If specified, forces the generator to use these parameters for the spatial pattern instead of sampling from the error model distribution.
-    If None, spatial pattern parameters will be randomly sampled from their distributions in the error model.
-    """
-    fixed_domain_class: Optional[ValueClassDistribution] = None
-
-    """
-    If specified, forces the generator to use this domain class distribution instead of sampling from the error model distribution.
-    If None, domain classes will be randomly sampled according to their frequency in the error model.
+    The layout of the tensor. Defaults to CHW (channel first).
+    NOTE: Not 100% sure that other layouts work.
     """
 
-    def __post_init__(self):
-        if (
-            self.fixed_spatial_class
-            and not self.fixed_spatial_parameters
-            and self.fixed_spatial_class not in self.error_model.entries_name
-        ):
-            raise ValueError(
-                f"Entry name {self.fixed_spatial_class} does not exist in error model, and no spatial parameters are specified"
-            )
+    def get_available_spatial_classes(self):
+        return self.error_model.entries_name
+
+
+    def get_number_of_spatial_classes(self):
+        return len(self.error_model.entries_name)
+
 
     def generate_mask(
         self,
         output_shape: Sequence[int],
-        value_range=np.array([-30.0, 30.0], dtype=np.float32),
-        dtype=None,
+        spatial_class: str | None,
+        value_range = np.array([-30.0, 30.0], dtype=np.float32),
+        dtype = None,
     ) -> Fault:
         """
-        Generate a single Fault object based on the configured error models.
+        Generates a single Fault object based on the configured error models.
 
         Args
         ---
-        * ``output_shape : Sequence[int]``. The shape of the target tensor to corrupt with format specified in the layout field (no batch size).
-        * ``value_range : np.ndarray (1d, len = 2)``. The operating range of the layer. Used for determining the threshold for which the values are in range or out.
-        * ``dtype``. The data type of the target tensor. If None it is derived from the dtype of value_range
+        * `output_shape` - the shape of the target tensor to corrupt with format specified in the layout field\
+            (no batch size).
+        * `spatial_class` - if None, a random spatial class is selected from the error model. If the name of a spatial\
+            class is provided, that specific spatial class is used instead.
+        * `value_range : np.ndarray (1d, len = 2)` - the operating range of the layer. Used for determining the threshold for\
+            which the values are in range.
+        * `dtype` - the data type of the target tensor. If None, it is derived from the dtype of value_range.
 
         Returns
         ---
-        A generated Fault object
+        A generated Fault object.
         """
         # Data Type is inferred from value range if not specified
         if dtype is None:
             dtype = value_range.dtype
 
-        if self.fixed_spatial_class:
-            # Use spatial class fixed at the creation of the generator
-            spatial_pattern_name = self.fixed_spatial_class
-            random_entry = self.error_model.get_entry_by_name(spatial_pattern_name)
+        if spatial_class is not None:
+            random_entry = self.error_model.get_entry_by_name(spatial_class)
+            spatial_pattern_name = spatial_class
         else:
-            # Pick random entry (spatial pattern) using the frequency
+            # Pick random entry (spatial pattern) using the model frequencies
             random_entry = self.error_model.realize_entry()
             spatial_pattern_name = random_entry.spatial_pattern_name
 
-        if self.fixed_domain_class:
-            domain_class = self.fixed_domain_class
-        else:
-            domain_class = random_entry.realize_domain_class()
-
-        if self.fixed_spatial_parameters:
-            sp_parameters = self.fixed_spatial_parameters
-        else:
-            sp_parameters = random_entry.realize_spatial_parameters()
+        domain_class = random_entry.realize_domain_class()
+        sp_parameters = random_entry.realize_spatial_parameters()
 
         # Get the pattern generating function from the dictionary by name
         pattern_generator_fn = self.generator_mapping[spatial_pattern_name]
@@ -130,12 +110,14 @@ class FaultGenerator:
             corrupted_value_mask, corrupted_values, spatial_pattern_name, sp_parameters
         )
 
+
     def generate_batched_mask(
         self,
         output_shape: Sequence[int],
         batch_size: int,
-        value_range=np.array([-30.0, 30.0], dtype=np.float32),
-        dtype=None,
+        spatial_class: str | None = None,
+        value_range = np.array([-30.0, 30.0], dtype=np.float32),
+        dtype = None,
     ) -> FaultBatch:
         masks = []
         values = []
@@ -144,14 +126,15 @@ class FaultGenerator:
 
         assert batch_size > 0, "batch_size must be a positive int"
 
-        for i in range(batch_size):
+        for _ in range(batch_size):
             mask, corr_value, sp_class, sp_parameter = self.generate_mask(
-                output_shape, value_range, dtype=dtype
+                output_shape, spatial_class, value_range, dtype=dtype
             )
             masks.append(mask)
             values.append(corr_value)
             sp_classes.append(sp_class)
             sp_parameters.append(sp_parameter)
+
         masks = np.stack(masks, axis=0)
         values_lengths = np.array(list(map(np.size, values)), dtype=np.intp)
         values_index = np.zeros(values_lengths.size + 1, dtype=np.intp)

@@ -1,10 +1,66 @@
 experiment_name: Example Name
+# --------------------------------------------------------------------------------------------------
+
+# Identifier for the network/dataset pair to use. Use one of the available ids in network_getter.py.
 network_dataset_id: resnet50_cifar10
-batch_size: 10
-error_models_path: /home/alberto/MasterThesis/classes/error_models/conv_models/nv_8x8_b1_dat-32768_wt-123904_int8
-num_faults_per_module: 10
-fault_list_path: '/home/alberto/MasterThesis/classes/experiments/exp_resnet50_cifar10/resnet50_cifar10_fault_list.tar'
+# --------------------------------------------------------------------------------------------------
+
+# Identifier for the hardware configuration the error models were built from. It's only used for report filenames, so it
+# can also be a simple abbreviated form as in this example.
+hw_config_id: 8x8_int8
+# --------------------------------------------------------------------------------------------------
+
+# Path to the folder containing the error model (json) files. Can be relative.
+error_models_path: ./error_models/conv_models/nv_8x8_b1_dat-32768_wt-123904_int8
+# --------------------------------------------------------------------------------------------------
+
+# Path to the file describing the error models' source hyperparameters and frequencies. It's usually the output of architectural
+# level postprocessing and can be either csv or xlsx (Excel). Can be relative.
+error_models_df_path: ./error_models/conv_models/nv_8x8_b1_dat-32768_wt-123904_int8/unique_complete_df.xlsx
+# --------------------------------------------------------------------------------------------------
+
+# If True, takes a single batch from the dataloader and uses it as the network input instead of iterating over the whole dataset.
+# Optional, defaults to True.
 use_single_batch: True
+# --------------------------------------------------------------------------------------------------
+
+# Number of input images to use for each batch. If use_single_batch is True, this is the exact number of images that will be used
+# for each experiment run.
+batch_size: 10
+# --------------------------------------------------------------------------------------------------
+
+# If True, 'num_faults_per_module' errors will be generated for each spatial class in each layer's error model.
+# If False, that will be the total number of errors for each layer and the errors will be randomly generated.
+uniform_spatial_classes: True
+# --------------------------------------------------------------------------------------------------
+
+# Number of errors to generate for each injectable network layer (for each spatial class if 'uniform_spatial_classes'
+# is True or in total and randomly if it's False).
+num_faults_per_module: 10
+# --------------------------------------------------------------------------------------------------
+
+# Path to save the generated fault list to. It won't be generated if it already exists, unless the -rf flag is passed to
+# run_experiment.py. Can be relative.
+fault_list_path: ./experiments/exp_resnet50_cifar10/resnet50_cifar10_fault_list.tar
+# --------------------------------------------------------------------------------------------------
+
+# Path to save the dictionary {module_name: sdc_frequency} to. The generation process is the same as the fault list's.
+# Can be relative.
+SDC_frequency_dict_path: ./experiments/exp_alexnet_cifar10/SDC_frequencies.yaml
+# --------------------------------------------------------------------------------------------------
+
+# Tolerance level for float value equality.
+# Optional, defaults to 0.001.
 tolerance: 0.001
-num_threads: 4
+# --------------------------------------------------------------------------------------------------
+
+# If True, the usability metrics are computed for each output batch. This can slow down the simulation considerably.
+# If False, the output tensors for each injection are saved to file for later postprocessing. This can produce a large amount
+# of extra data.
+# Optional, defaults to False.
 compute_single_metrics: False
+# --------------------------------------------------------------------------------------------------
+
+# Num of threads to use when computing metrics for each output. Unused if compute_single_metrics is False.
+# Optional, defaults to 4.
+num_threads: 4

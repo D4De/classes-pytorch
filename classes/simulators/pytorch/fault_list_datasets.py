@@ -1,19 +1,14 @@
-import os
 import torch
-import torch.nn as nn
 import numpy as np
 import tarfile
 import pathlib
 
-from typing import Optional, Sequence, Tuple, Union
-from dataclasses import dataclass
-from torch.utils.data import Dataset, IterableDataset
+from torch.utils.data import Dataset
 
 from classes.simulators.pytorch.pytorch_fault import PyTorchFault, PyTorchFaultBatch
-from classes.simulators.pytorch.fault_list import PyTorchFaultList, PyTorchFaultListMetadata, PyTorchFaultListDynamic, PyTorchFaultListDynamicMetadata
 
 
-def fault_collate_fn(data: Sequence[PyTorchFaultBatch]):
+def fault_collate_fn(data: list[PyTorchFaultBatch]):
     names, fault_ids, masks, values, sp_classes, sp_parameters = zip(*data)
 
     torch_values_idxs = torch.LongTensor(
@@ -39,192 +34,67 @@ def fault_collate_fn(data: Sequence[PyTorchFaultBatch]):
     )
 
 
-class FaultListFromTarFile(Dataset[PyTorchFault]):
-    def __init__(self, fault_list_path: str, module: Optional[str] = None) -> None:
-        super().__init__()
-        self.fault_list_path = fault_list_path
-        self.module = module
-        self.include_sp_parameters = True
-        self.fault_list_info = None
-        self.tmp_path = None
-
-        self.info = PyTorchFaultListMetadata.load_fault_list_info(self.fault_list_path)
-
-        self.n_faults = self.info.n_faults_per_module
-
-    def __getitem__(self, index: Union[int, Tuple[str, int]]) -> PyTorchFault:
-
-        if isinstance(index, tuple):
-            selected_module_name, module_idx = index
-            if selected_module_name not in self.info.injectable_layers:
-                raise IndexError(f'{selected_module_name} is not an injectable layer of the fault list.')
-            
-        else:
-            index : int = index
-            if self.module is None:
-                selected_module_idx = index // self.info.n_faults_per_module
-                selected_module_name = self.info.injectable_layers[selected_module_idx]
-                module_idx = index % self.info.n_faults_per_module
-            else:
-                selected_module_name = self.module
-                module_idx = index
-
-        file_idx = module_idx // self.info.fault_batch_size
-        batch_idx = module_idx % self.info.fault_batch_size
-        
-        # fault_file_path = os.path.join(
-        #     selected_module_name, f"{file_idx}_faults_{selected_module_name}.npz"
-        # )
-        
-        # tarfile.py only supports posix pathfiles: force the path format to posix, even on Windows
-        fault_file_path = pathlib.Path(f"{selected_module_name}/{file_idx}_faults_{selected_module_name}.npz").as_posix()
-
-        with tarfile.TarFile(self.fault_list_path, "r") as tarf:
-            member_file = tarf.extractfile(fault_file_path)
-            if not member_file:
-                raise FileNotFoundError(
-                    f"File {fault_file_path} not found in fault list archive"
-                )
-            try:
-                fault_list_file = np.load(member_file, allow_pickle=True)
-                mask = fault_list_file["masks"][batch_idx]
-                slice_begin, slice_end = fault_list_file["values_index"][
-                    batch_idx : batch_idx + 2
-                ]
-                values = fault_list_file["values"][slice_begin:slice_end]
-
-                torch_mask = torch.from_numpy(mask)
-                torch_values = torch.from_numpy(values)
-
-                sp_class = fault_list_file["sp_classes"][batch_idx]
-                sp_param = fault_list_file["sp_parameters"][batch_idx]
-                return PyTorchFault(
-                    selected_module_name,
-                    module_idx,
-                    torch_mask,
-                    torch_values,
-                    sp_class,
-                    sp_param,
-                )
-            finally:
-                member_file.close()
-
-
-    def collate_fn(self, data: Sequence[PyTorchFaultBatch]):
-        return fault_collate_fn(data)
-
-    def __len__(self) -> int:
-        return self.n_faults
-
-
 class FaultListFromTarFileDynamic(Dataset[PyTorchFault]):
-    def __init__(self, fault_list_path: str, module: Optional[str] = None) -> None:
-        super().__init__()
-        self.fault_list_path = fault_list_path
-        self.module = module
-        self.include_sp_parameters = True
-        self.fault_list_info = None
-        self.tmp_path = None
-
-        self.info = PyTorchFaultListDynamicMetadata.load_fault_list_info(self.fault_list_path)
-
-        self.n_faults = self.info.n_faults_per_module
-
-    def __getitem__(self, index: Union[int, Tuple[str, int]]) -> PyTorchFault:
-
-        if isinstance(index, tuple):
-            selected_module_name, module_idx = index
-            if selected_module_name not in self.info.injectable_layers:
-                raise IndexError(f'{selected_module_name} is not an injectable layer of the fault list.')
-            
-        else:
-            index : int = index
-            if self.module is None:
-                selected_module_idx = index // self.info.n_faults_per_module
-                selected_module_name = self.info.injectable_layers[selected_module_idx]
-                module_idx = index % self.info.n_faults_per_module
-            else:
-                selected_module_name = self.module
-                module_idx = index
-
-        file_idx = module_idx // self.info.fault_batch_size
-        batch_idx = module_idx % self.info.fault_batch_size
-        
-        # fault_file_path = os.path.join(
-        #     selected_module_name, f"{file_idx}_faults_{selected_module_name}.npz"
-        # )
-        
-        # tarfile.py only supports posix pathfiles: force the path format to posix, even on Windows
-        fault_file_path = pathlib.Path(f"{selected_module_name}/{file_idx}_faults_{selected_module_name}.npz").as_posix()
-
-        with tarfile.TarFile(self.fault_list_path, "r") as tarf:
-            member_file = tarf.extractfile(fault_file_path)
-            if not member_file:
-                raise FileNotFoundError(
-                    f"File {fault_file_path} not found in fault list archive"
-                )
-            try:
-                fault_list_file = np.load(member_file, allow_pickle=True)
-                mask = fault_list_file["masks"][batch_idx]
-                slice_begin, slice_end = fault_list_file["values_index"][
-                    batch_idx : batch_idx + 2
-                ]
-                values = fault_list_file["values"][slice_begin:slice_end]
-
-                torch_mask = torch.from_numpy(mask)
-                torch_values = torch.from_numpy(values)
-
-                sp_class = fault_list_file["sp_classes"][batch_idx]
-                sp_param = fault_list_file["sp_parameters"][batch_idx]
-                return PyTorchFault(
-                    selected_module_name,
-                    module_idx,
-                    torch_mask,
-                    torch_values,
-                    sp_class,
-                    sp_param,
-                )
-            finally:
-                member_file.close()
-
-
-    def collate_fn(self, data: Sequence[PyTorchFaultBatch]):
-        return fault_collate_fn(data)
-
-    def __len__(self) -> int:
-        return self.n_faults
-
-
-class PyTorchLazyFaultList(IterableDataset[PyTorchFault]):
     def __init__(
         self,
-        fault_list_generator: PyTorchFaultList,
-        module: str,
-        n_faults: int,
+        tarf: tarfile.TarFile,
+        module_name: str,
+        num_faults: int,
+        fault_batch_size: int,
     ) -> None:
         super().__init__()
-        self.fault_list_generator = fault_list_generator
-        self.module = module
-        self.n_faults = n_faults
+        self.tarf = tarf
+        self.module_name = module_name
+        self.num_faults = num_faults
+        self.fault_batch_size = fault_batch_size
 
+        self.include_sp_parameters = True
+        self.fault_list_info = None
+        self.tmp_path = None
 
-    def __iter__(self):
+    def __getitem__(self, index: int) -> PyTorchFault:
+        file_idx  = index // self.fault_batch_size
+        batch_idx = index % self.fault_batch_size
+        
+        # fault_file_path = os.path.join(
+        #     selected_module_name, f"{file_idx}_faults_{selected_module_name}.npz"
+        # )
+        
+        # tarfile.py only supports posix pathfiles: force the path format to posix, even on Windows
+        fault_file_path = pathlib.Path(f"{self.module_name}/{file_idx}_faults_{self.module_name}.npz").as_posix()
 
-        def convert_to_tensor(generated_fault : Tuple[str, int, PyTorchFaultBatch]):
-            module_name, fault_id, fault = generated_fault
-
-            return PyTorchFault(
-                module_name,
-                fault_id,
-                torch.from_numpy(fault.corrupted_value_mask[0]),
-                torch.from_numpy(fault.corrupted_values),
-                fault.spatial_pattern_names[0],
-                fault.sp_parameters[0]
+        member_file = self.tarf.extractfile(fault_file_path)
+        if not member_file:
+            raise FileNotFoundError(
+                f"File {fault_file_path} not found in fault list archive"
             )
+        try:
+            fault_list_file = np.load(member_file, allow_pickle=True)
+            mask = fault_list_file["masks"][batch_idx]
+            slice_begin, slice_end = fault_list_file["values_index"][
+                batch_idx : batch_idx + 2
+            ]
+            values = fault_list_file["values"][slice_begin:slice_end]
 
-        return map(convert_to_tensor, self.fault_list_generator.module_fault_list_generator(
-                    self.module, self.n_faults, 1
-        ))
-    
-    def collate_fn(self, data: Sequence[PyTorchFaultBatch]):
+            torch_mask = torch.from_numpy(mask)
+            torch_values = torch.from_numpy(values)
+
+            sp_class = fault_list_file["sp_classes"][batch_idx]
+            sp_param = fault_list_file["sp_parameters"][batch_idx]
+            return PyTorchFault(
+                self.module_name,
+                index,
+                torch_mask,
+                torch_values,
+                sp_class,
+                sp_param,
+            )
+        finally:
+            member_file.close()
+
+
+    def collate_fn(self, data: list[PyTorchFaultBatch]):
         return fault_collate_fn(data)
+
+    def __len__(self) -> int:
+        return self.num_faults

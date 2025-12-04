@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 from operator import itemgetter
+from ultralytics import YOLO
 from collections import defaultdict
 from torch.utils.data import DataLoader
 from torch.utils.hooks import RemovableHandle
@@ -18,18 +19,28 @@ DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def module_shape_profiler(
     module: nn.Module,
-    input_data: torch.Tensor | tuple[Image.Image] | torch.Size | list[int],
-    module_filter_fn: Callable[[nn.Module], bool] = lambda module: True,
-    device=DEFAULT_DEVICE,
-) -> Mapping[str, Tuple[List[int], List[int]]]:
+    input_sample: torch.Tensor | tuple[Image.Image],
+    module_names: list[str],
+    device,
+) -> dict[str, tuple[list[int], list[int]]]:
     """
     Executes a forward pass in a Module to determine the input and output shapes of all
     the children modules at every nesting level.
 
-    The function takes in input the module and either a PyTorch tensor (batch), a tensor size used to build a dummy input tensor,
-    or a tuple of PIL images. 
+    The function takes in input the module and either a PyTorch tensor (batch) or a tuple of PIL images. 
     It returns a dictionary containing all the shapes of submodules.
+    
+    ----
+    Notes on the input: in most cases, PyTorch dataloaders will simply return images in the form of tensors, which
+    can be directly passed to the network.
+    A notable exception is Ultralytics YOLO, as the framework (as of 2025) does not accept tensors directly. If the
+    dataset is COCO, provided by the PyTorch library CocoDetection, the dataloader will return tuples of PIL images, which
+    can be safely passed to YOLO, provided that the .predict() method is used, as it takes care of some preprocessing tasks,
+    such as ensuring that the images are properly rescaled.
 
+    Therefore, if you are using Ultralytics YOLO, prefer passing the "raw" PIL images to this function.
+
+    ----
     VERY IMPORTANT NOTE: Each layer in the module MUST not be reused multiple time.
     EACH operator defined in init MUST BE APPLIED ONLY ONCE IN THE WHOLE NETWORK
 
@@ -43,9 +54,9 @@ def module_shape_profiler(
 
     Args
     ----
-    * `module : the module to be profiled (can be an entire network)
-    * `input_data : a dummy input directly used to profile or the desired size of the input
-    * `module_filter_fn : a function that takes in input the module name and the module itself and returns a boolean that says
+    * module : the module to be profiled (can be an entire network)
+    * input_data : a dummy input directly used to profile
+    * module_filter_fn : a function that takes in input the module name and the module itself and returns a boolean that says
                 whether the profiling should happen in that layer. If not specified, the output shape of all modules will be profiled.
     Returns
     ---
@@ -53,7 +64,7 @@ def module_shape_profiler(
     The values are tuples of 2 elements; the first element is the output shape, the second is the input shape.
     """
 
-    shape_index = {}
+    module_to_shapes = {}
 
     # This hook will be added at each submodule and:
     # * gets the size of the output after the execution of a submodule
@@ -63,44 +74,49 @@ def module_shape_profiler(
         def _shape_profile_hook(module, input, output):
             output_shape = output.size() if isinstance(output, torch.Tensor) else None
             input_shape = input[0].size() if isinstance(input[0], torch.Tensor) else None
-            shape_index[name] = (output_shape, input_shape)
+            module_to_shapes[name] = (output_shape, input_shape)
             # Do not modify the output
             return output
 
         return _shape_profile_hook
 
-    if isinstance(input_data, (torch.Size, list)):
-        # build a dummy input tensor
-        input_data = torch.normal(0.0, 1.0, input_data)
-    
-    if isinstance(input_data, torch.Tensor):
-        input_data = input_data.to(device)
-
     # Store the handles to remove the hooks after the profiling
     hook_handles: List[RemovableHandle] = []
     try:    
-        for name, mod in module.named_modules():
-            if module_filter_fn(mod):
-                handle = mod.register_forward_hook(_make_shape_profile_hook(name))
-                hook_handles.append(handle)
+        for module_name in module_names:
+            mod = module.get_submodule(module_name)
+            handle = mod.register_forward_hook(_make_shape_profile_hook(module_name))
+            hook_handles.append(handle)
+
         with torch.no_grad():
-            module(input_data)
+            # special case: the module is an Ultralytics YOLO network
+            if isinstance(module, YOLO):
+                img: Image.Image = input_sample[0]
+                if not isinstance(img, Image.Image):
+                    raise ValueError(f'Ultralytics YOLO only accepts tuples of PIL images as input.')
+                # get size of the image
+                width, height = img.size
+                module.predict(input_sample, imgsz=(height, width), batch=len(input_sample), verbose=False)
+            else:
+                input_sample = input_sample.to(device)
+                module(input_sample)
+
     finally:
         # Restore the network as it was before (removing hooks applied in this function)
         for handle in hook_handles:
             handle.remove()
 
-    return shape_index
+    return module_to_shapes
 
 
 def module_range_profiler(
-    network: nn.Module,
+    module: nn.Module,
     dataloader: DataLoader,
+    module_names: list[str],
+    device,
     torch_dtype=torch.float32,
     np_output_dtype=np.float32,
-    module_filter_fn: Callable[[nn.Module], bool] = lambda module: True,
-    device=DEFAULT_DEVICE,
-) -> Mapping[str, np.ndarray]:
+) -> dict[str, np.ndarray]:
 
     min_value_per_module = defaultdict(
         lambda: torch.tensor(np.inf, dtype=torch_dtype).to(device)
@@ -126,16 +142,29 @@ def module_range_profiler(
     profiled_modules_names = []
 
     try:
-        for name, module in network.named_modules():
-            if module_filter_fn(module):
-                profiled_modules_names.append(name)
-                handle = module.register_forward_hook(_make_range_profile_hook(name))
-                hook_handles.append(handle)
+        for module_name in module_names:
+            profiled_modules_names.append(module_name)
+            mod = module.get_submodule(module_name)
+            handle = mod.register_forward_hook(_make_range_profile_hook(module_name))
+            hook_handles.append(handle)
+
         with torch.no_grad():
-            for dummy_input, _ in tqdm(dataloader, desc="Profiling module ranges"):
-                if isinstance(dummy_input, torch.Tensor):
+            # special case: the module is an Ultralytics YOLO network
+            if isinstance(module, YOLO):
+                # get size of input images
+                for input_sample, _ in dataloader: break
+                img: Image.Image = input_sample[0]
+                if not isinstance(img, Image.Image):
+                    raise ValueError(f'Ultralytics YOLO only accepts tuples of PIL images as input.')
+                # get size of the image
+                img_size = (img.size[1], img.size[0])
+
+                for input_sample, _ in tqdm(dataloader, desc="Profiling module ranges"):
+                    module.predict(input_sample, imgsz=img_size, batch=len(input_sample), verbose=False)
+            else:
+                for dummy_input, _ in tqdm(dataloader, desc="Profiling module ranges"):
                     dummy_input = dummy_input.to(device)
-                network(dummy_input)
+                    module(dummy_input)
 
     finally:
         for handle in hook_handles:

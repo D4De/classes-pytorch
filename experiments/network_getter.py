@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 
 from functools import partial
@@ -29,11 +30,12 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
 
     match id:
         case 'resnet50_cifar10':
-            from experiments.exp_resnet50_cifar10.model import get_model
+            from nets_repo.classification.cifar10.models.resnet import ResNet50
             from nets_repo.classification.cifar10.dataset import getCIFAR10
             from experiments.network_runner import classification_run
             from experiments.metrics import compute_classification_run_metrics
-            model = get_model(os.path.join(weights_dir, 'resnet50', 'fp32_res50_cifar10.pth'))
+            model = ResNet50()
+            model.load_state_dict(torch.load(os.path.join(weights_dir, 'resnet50', 'fp32_res50_cifar10.pth')))
             if not return_model_only:
                 _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
                 run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
@@ -73,6 +75,18 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
                 loader = getCOCO(os.path.join(data_dir, 'coco'), image_size, batch_size)
                 run_fn = partial(yolo_detection_run, model=model, dataloader=loader, image_size=image_size, batch_size=batch_size)
                 metrics_fn = partial(compute_yolo_detection_run_metrics, image_size=image_size)
+
+            # sys.path.insert(1, 'other_nets/detection/coco/models/YOLOv11')
+            # from other_nets.detection.coco.dataset import getCOCO2
+            # from experiments.network_runner import yolo_detection_run
+            # from experiments.metrics import compute_yolo_detection_run_metrics
+            # image_size: int = 128
+            # model = torch.load(f='other_nets/detection/coco/models/YOLOv11/weights/best.pt', map_location=device, weights_only=False)
+            # model = model['model'].float().fuse()
+            # if not return_model_only:
+            #     loader = getCOCO2(os.path.join(data_dir, 'coco'), image_size, batch_size)
+            #     run_fn = partial(yolo_detection_run, model=model, dataloader=loader, image_size=image_size, batch_size=batch_size)
+            #     metrics_fn = partial(compute_yolo_detection_run_metrics, image_size=image_size)
 
         case 'deeplabv3_oxfordpet':
             from other_nets.segmentation.oxfordpet.models.deeplabv3 import get_deeplabv3

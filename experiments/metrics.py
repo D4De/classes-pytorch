@@ -155,7 +155,7 @@ def center_distance_two_bboxes(box1: list[float], box2: list[float]):
     return sqrt(distance2)
 
 
-def yolo_coco_evaluate_golden(ground_truth: list[dict], predictions: Results, iou_threshold=0.5):
+def yolo_coco_evaluate_golden(ground_truth: dict, predictions: Results, iou_threshold=0.5):
     """
     The ground truth is provided by PyTorch's CocoDetection: for a given image, the corresponding targets are packed into a list
     of dictionary; each of these dictionaries corresponds to one annotated object in the image.
@@ -169,6 +169,7 @@ def yolo_coco_evaluate_golden(ground_truth: list[dict], predictions: Results, io
     matched_true_indices = [] # true boxes that are matched are subsequently ignored
 
     predicted_classes, predicted_coords = predictions.boxes.cls.tolist(), predictions.boxes.xyxy.tolist()
+    true_classes, true_coords = ground_truth['labels'], ground_truth['boxes']
 
     # iterate through the predicted boxes
     for pred_class, pred_xyxy in zip(predicted_classes, predicted_coords):
@@ -176,12 +177,10 @@ def yolo_coco_evaluate_golden(ground_truth: list[dict], predictions: Results, io
         matched_true_index = None
 
         # iterate through the true boxes and find the one with maximum iou
-        for i, true_result in enumerate(ground_truth):
+        for i, true_xyxy in enumerate(true_coords):
             if i in matched_true_indices: # skip if the box was matched already
                 continue
             
-            true_xyxy = true_result['bbox']
-
             # compute iou
             iou = iou_two_bboxes(pred_xyxy, true_xyxy)
 
@@ -192,7 +191,7 @@ def yolo_coco_evaluate_golden(ground_truth: list[dict], predictions: Results, io
 
         if max_iou != None and max_iou >= iou_threshold: # found a match for the bounding box
             # get the class id of the matched box
-            true_id = int(ground_truth[matched_true_index]['category_id'])
+            true_id = int(true_classes[matched_true_index])
 
             # if the ids match, true positive
             if int(pred_class) == true_id:
@@ -324,13 +323,20 @@ def compute_yolo_detection_golden_run_metrics(golden_results, logger, report_dat
 
 
 def compute_classification_run_metrics(
-    results, layer_metrics_dict: dict, 
-    csv_writer, module_name: str, error_number: int, fault: PyTorchFault,
-    tolerance: float, outputs_path: str, compute_single_metrics: bool = False, num_threads: int = 4,
+    results: tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+    layer_metrics_dict: dict, 
+    csv_writer,
+    module_name: str, error_number: int, fault: PyTorchFault,
+    tolerance: float, outputs_path: str,
+    compute_single_metrics: bool = False, num_threads: int = 4,
 ):
     """
-    Note: if 'compute_row_metrics' is False, the corrupted rankings will be saved as numpy files for later processing.
+    Note: if 'compute_row_metrics' is False, the corrupted rankings will be saved as numpy files for later processing. In
+    this case, 'csv_writer' won't be used and None may be passed to it.
     If it is True, single row metrics such as Kendall Tau will be computed immediately, but the process will take much longer.
+
+    Note: 'results' is obtained from the run function. Should contain the golden scores, the golden labels, the golden rankings, the
+    error scores and the error rankings.
     """
     golden_scores, golden_labels, golden_rankings, error_scores, error_rankings = results
 
@@ -501,9 +507,12 @@ def compute_classification_row_metrics(
 
 
 def compute_segmentation_run_metrics(
-    results, layer_metrics_dict: dict, 
-    csv_writer, module_name: str, error_number: int, fault: PyTorchFault, num_classes: int,
-    tolerance: float, outputs_path: str, compute_single_metrics: bool = False, num_threads: int = 4,
+    results: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    layer_metrics_dict: dict, 
+    csv_writer,
+    module_name: str, error_number: int, fault: PyTorchFault, num_classes: int,
+    tolerance: float, outputs_path: str,
+    compute_single_metrics: bool = False, num_threads: int = 4,
 ):
     # all three of these tensors have shape (num_samples, height, width)
     golden_predictions, ground_truth, error_predictions = results
@@ -669,9 +678,12 @@ def compute_segmentation_single_metrics(
 
 
 def compute_yolo_detection_run_metrics(
-    results, layer_metrics_dict: dict,
-    csv_writer, module_name: str, error_number: int, fault: PyTorchFault,
-    tolerance: float, outputs_path: str, image_size: int, compute_single_metrics: bool = False, num_threads: int = 4,
+    results: tuple[list[Results], list[dict], list[Results]],
+    layer_metrics_dict: dict,
+    csv_writer,
+    module_name: str, error_number: int, fault: PyTorchFault,
+    tolerance: float, outputs_path: str, image_size: int,
+    compute_single_metrics: bool = False, num_threads: int = 4,
 ):
     """
     Note: tolerance is used as the maximum possible box distance for masking.
@@ -680,15 +692,15 @@ def compute_yolo_detection_run_metrics(
     golden_results, targets, error_results = results
 
     # transform target boxes' coordinates to xyxy
-    for target in targets:
-        target_xywh = target['bbox']
-        # bounding boxes provided by CocoDetection use the form xywh
-        target['bbox'] = [
-            target_xywh[0], # x_min
-            target_xywh[1], # y_min
-            target_xywh[0] + target_xywh[2], # x_max
-            target_xywh[1] + target_xywh[3], # y_max
-        ]
+    # for target in targets:
+    #     target_xywh = target['bbox']
+    #     # bounding boxes provided by CocoDetection use the form xywh
+    #     target['bbox'] = [
+    #         target_xywh[0], # x_min
+    #         target_xywh[1], # y_min
+    #         target_xywh[0] + target_xywh[2], # x_max
+    #         target_xywh[1] + target_xywh[3], # y_max
+    #     ]
 
     # the images are assumed to be square, so the maximum possible distance is the length of the diagonal
     max_possible_box_distance = image_size * sqrt(2)
@@ -699,16 +711,13 @@ def compute_yolo_detection_run_metrics(
     csv_rows = []
 
     total_precision = total_recall = 0.0
-    num_samples = 0
+    num_samples = len(golden_results)
 
     # golden metrics
-    for batch_prediction, batch_truth in zip(golden_results, targets):
-        num_samples += len(batch_prediction)
-
-        for single_prediction, single_truth in zip(batch_prediction, batch_truth):
-            TP, FP, FN = yolo_coco_evaluate_golden(single_truth, single_prediction)
-            total_precision += TP / (TP + FP)
-            total_recall += TP / (TP + FN)
+    for single_prediction, single_truth in zip(golden_results, targets):
+        TP, FP, FN = yolo_coco_evaluate_golden(single_truth, single_prediction)
+        total_precision += TP / (TP + FP) if (TP + FP) != 0 else 0.0
+        total_recall    += TP / (TP + FN) if (TP + FN) != 0 else 0.0
 
     avg_precision = float(total_precision/num_samples)
     avg_recall = float(total_recall/num_samples)
@@ -720,37 +729,36 @@ def compute_yolo_detection_run_metrics(
     num_masked = num_sdc_safe = num_sdc_critical = 0
     total_TP, total_FP, total_FN = 0
 
-    for batch_prediction, batch_golden in zip(error_results, golden_results):
-        for single_prediction, single_golden in zip(batch_prediction, batch_golden):
-            TP, FP, FN, result = yolo_coco_evaluate_corrupted(single_golden, single_prediction, max_possible_box_distance, tolerance)
-            
-            if result ==  ResultType.MASKED:
-                num_masked += 1
+    for single_prediction, single_golden in zip(error_results, golden_results):
+        TP, FP, FN, result = yolo_coco_evaluate_corrupted(single_golden, single_prediction, max_possible_box_distance, tolerance)
+        
+        if result == ResultType.MASKED:
+            num_masked += 1
+        else:
+            if result == ResultType.SDC_SAFE: 
+                num_sdc_safe += 1
+                csv_type = 'True'
+            elif result == ResultType.SDC_CRITICAL: 
+                num_sdc_critical += 1
+                csv_type = 'False'
+
+            if compute_single_metrics:
+                precision = TP / (TP + FP) if (TP + FP) != 0 else 0.0
+                recall    = TP / (TP + FN) if (TP + FN) != 0 else 0.0
+                csv_rows.append(csv_fields + [csv_type, precision, recall])
             else:
-                if result == ResultType.SDC_SAFE: 
-                    num_sdc_safe += 1
-                    csv_type = 'True'
-                elif result == ResultType.SDC_CRITICAL: 
-                    num_sdc_critical += 1
-                    csv_type = 'False'
+                #TODO implement results saving
+                pass
 
-                if compute_single_metrics:
-                    precision = TP / (TP + FP) if (TP + FP) != 0 else 0.0
-                    recall = TP / (TP + FN) if (TP + FN) != 0 else 0.0
-                    csv_rows.append(csv_fields + [csv_type, precision, recall])
-                else:
-                    #TODO implement results saving
-                    pass
-
-                total_TP += TP
-                total_FP += FP
-                total_FN += FN
+            total_TP += TP
+            total_FP += FP
+            total_FN += FN
 
     if compute_single_metrics:
         csv_writer.writerows(csv_rows)
 
     # save results for the fault
     layer_metrics_dict[module_name][error_number]['Precision'] = total_TP / (total_TP + total_FP) if (total_TP + total_FP) != 0 else 0.0
-    layer_metrics_dict[module_name][error_number]['Recall'] = total_TP / (total_TP + total_FN) if (total_TP + total_FN) != 0 else 0.0
+    layer_metrics_dict[module_name][error_number]['Recall']    = total_TP / (total_TP + total_FN) if (total_TP + total_FN) != 0 else 0.0
 
     return num_masked, num_sdc_safe, num_sdc_critical
