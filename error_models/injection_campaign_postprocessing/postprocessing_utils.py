@@ -8,11 +8,12 @@ import experiments.network_getter as netget
 
 from argparse import ArgumentParser
 
-initial_models_dirname = 'initial_error_models'
-merged_models_dirname = 'merged_error_models'
-netcontent_dirname = 'netcontent_files'
-step1_output_filename = 'step1_complete_df.xlsx'
-step2_output_filename = 'step2_unique_complete_df.xlsx'
+initial_models_dirname               = 'initial_error_models'
+merged_models_dirname                = 'merged_error_models'
+netcontent_dirname                   = 'netcontent_files'
+hw_unit_reports_dirname              = 'hw_unit_reports'
+step1_output_filename                = 'step1_complete_df.xlsx'
+step2_output_filename                = 'step2_unique_complete_df.xlsx'
 step2_reconstruction_output_filename = 'step2_reconstruction_test_df.xlsx'
 
 hyperparameters = [

@@ -19,7 +19,11 @@ def check_layers(outputs_base_path: str, nvdla_configuration: str, networks_and_
         - layers:\\
             -- layer_name:\\
                 --- campaignout_path\\
-                --- error_model_path
+                --- error_models_path\\
+                --- hw_unit_output_dirs
+
+    The 'hw_unit_output_dirs' is a list of paths to the hardware unit directories, where the error classification report
+    for each unit can be found.
     """
     final_paths = {}
 
@@ -60,18 +64,24 @@ def check_layers(outputs_base_path: str, nvdla_configuration: str, networks_and_
                 raise ValueError(f'Layer {layer_name} of network {network} is missing the classes output directory.')
             
             # check existence of error model
+            classes_dir_contents = os.listdir(classes_dir_path)
+
             json_files = list(filter(
                 lambda x: x.endswith('.json'),
-                os.listdir(classes_dir_path)
+                classes_dir_contents
             ))
             if not json_files or len(json_files) > 1:
                 raise ValueError(f'Layer {layer_name} of network {network} is missing the error model file or it has multiple json files.')
             error_model_filepath = os.path.join(classes_dir_path, json_files[0])
 
+            hw_unit_dirs = [os.path.join(classes_dir_path, unit_dir) for unit_dir in classes_dir_contents 
+                            if os.path.isdir(os.path.join(classes_dir_path, unit_dir))]
+
             # add layer entry
             final_paths[network]['layers'][layer_name] = {
-                'campaignout_path': campaignout_path,
-                'error_model_path': error_model_filepath,
+                'campaignout_path'    : campaignout_path,
+                'error_model_path'    : error_model_filepath,
+                'hw_unit_output_dirs' : hw_unit_dirs,
             }
 
     return final_paths
@@ -160,6 +170,33 @@ def copy_netcontent_files(filepaths_dict: dict, netcontent_dir: str):
         shutil.copyfile(src_path, dst_path)
 
 
+def copy_hw_unit_reports(filepaths_dict: dict, reports_dir: str):
+    for network_name, network_dict in filepaths_dict.items():
+        # make network directory
+        network_dir = os.path.join(reports_dir, network_name)
+        os.makedirs(network_dir, exist_ok=True)
+
+        for layer_name, layer_paths in network_dict['layers'].items():
+            # make layer directory
+            layer_dir = os.path.join(network_dir, layer_name)
+            os.makedirs(layer_dir, exist_ok=True)
+
+            for src_unit_dir in layer_paths['hw_unit_output_dirs']:
+                # look for report file in unit dir
+                unit_report_filepath = os.path.join(src_unit_dir, 'unit_report.json')
+                if not os.path.exists(unit_report_filepath):
+                    raise FileNotFoundError(f'Unit report json file in {src_unit_dir} does not exist.')
+
+                # make unit directory
+                unit_name = os.path.basename(src_unit_dir)
+                unit_dir = os.path.join(layer_dir, unit_name)
+                os.makedirs(unit_dir, exist_ok=True)
+
+                # copy report file
+                dst_path = os.path.join(unit_dir, 'unit_report.json')
+                shutil.copyfile(unit_report_filepath, dst_path)
+
+
 def compute_zscores(complete_df: pd.DataFrame):
     """Starting from the complete layer dataframe, builds a new one with the Z-score computed for each frequency column.
     Also groups layer rows with the same hyperparameters and computes the Z-scores within each group. Returns both dataframes."""
@@ -210,6 +247,7 @@ if __name__ == '__main__':
     
     outputs_base_path = os.path.realpath(config_dict['outputs_base_path'])
 
+    # make directories
     final_output_dir = os.path.realpath(config_dict['final_output_dir'])
     os.makedirs(final_output_dir, exist_ok=True)
 
@@ -218,6 +256,9 @@ if __name__ == '__main__':
 
     netcontent_dir = os.path.join(final_output_dir, utils.netcontent_dirname)
     os.makedirs(netcontent_dir, exist_ok=True)
+
+    hw_unit_reports_dir = os.path.join(final_output_dir, utils.hw_unit_reports_dirname)
+    os.makedirs(hw_unit_reports_dir, exist_ok=True)
 
     output_filepath = os.path.join(final_output_dir, utils.step1_output_filename)
 
@@ -230,11 +271,21 @@ if __name__ == '__main__':
     # copy netcontent files
     copy_netcontent_files(filepaths_dict, netcontent_dir)
 
+    # copy hw unit reports
+    copy_hw_unit_reports(filepaths_dict, hw_unit_reports_dir)
+
     # get layer hyperparameters from networks
     layer_hyper_df = utils.build_hyperparameters_dataframe(config_dict['networks_and_layers'], config_dict['network_input_sizes'])
 
     # combine the two dataframes
     complete_df = pd.concat([layer_hyper_df, layer_freq_df], axis=1)
+
+    # if a previous version of the output file already exists, load the complete_df from it and concatenate, removing duplicate rows
+    if os.path.exists(output_filepath):
+        other_complete_df = pd.read_excel(output_filepath, sheet_name=0, header=0, index_col='Layer')
+        complete_df = pd.concat([complete_df, other_complete_df])
+        complete_df = complete_df.loc[~complete_df.index.duplicated(keep='last'), :] # keep most recent row if duplicated
+        complete_df.sort_index(inplace=True)
 
     # compute z-scores
     complete_zscored_df, grouped_zscored_df = compute_zscores(complete_df)

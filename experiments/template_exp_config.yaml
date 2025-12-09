@@ -2,7 +2,7 @@ experiment_name: Example Name
 # --------------------------------------------------------------------------------------------------
 
 # Identifier for the network/dataset pair to use. Use one of the available ids in network_getter.py.
-network_dataset_id: resnet50_cifar10
+network_dataset_id: res50_cifar10
 # --------------------------------------------------------------------------------------------------
 
 # Identifier for the hardware configuration the error models were built from. It's only used for report filenames, so it
