@@ -44,10 +44,21 @@ spatial_classes = [
     'Skip4',
 ]
 
-# not used in the actual postprocessing, but possibly identified by the classifier
-extra_spatial_classes = [
-    'SingleChannelAlternatedBlocks',
-    'MultipleChannelsUncategorized',
+# includes classes not used in the actual postprocessing, but possibly identified by the classifier
+snakecase_spatial_classes = [
+  'full_channels',
+  'single',
+  'single_block',
+  'bullet_wake',
+  'single_channel_random',
+  'multi_channel_block',
+  'shattered_channel',
+  'quasi_shattered_channel',
+  'rectangles',
+  'same_row',
+  'skip_4',
+  'single_channel_alternated_blocks',
+  'multiple_channels_uncategorized',
 ]
 
 
