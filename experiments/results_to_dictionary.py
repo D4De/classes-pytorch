@@ -9,7 +9,7 @@ import yaml
 
 from argparse import ArgumentParser
 
-from error_models.injection_campaign_postprocessing.postprocessing_utils import spatial_classes, extra_spatial_classes
+from error_models.injection_campaign_postprocessing.postprocessing_utils import spatial_classes, extra_spatial_classes, camelcase_to_snakecase
 
 def parse_arguments():
     parser = ArgumentParser()
@@ -25,7 +25,8 @@ def sum_number_tuples(t1: tuple, t2: tuple):
 
 
 def pack_report_dictionary(report_dict: dict):
-    all_spatial_classes = spatial_classes + extra_spatial_classes
+    all_spatial_classes = [camelcase_to_snakecase(sp_class) for sp_class in spatial_classes + extra_spatial_classes]
+
     layers_dict = {}
 
     for layer_name, layer_data in report_dict['Error simulation data']['Per-layer statistics'].items():
