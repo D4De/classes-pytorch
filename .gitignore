@@ -18,3 +18,4 @@ experiments/exp_*
 **/*Zone.Identifier
 **/*.pth
 **/*.pt
+error_models/injection_campaign_postprocessing/models_*/

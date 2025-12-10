@@ -1,0 +1,66 @@
+outputs_base_path: /home/miele/WORKSPACE/tcad2025/outdir/benchmarks
+nvdla_config_id: nv_8x8_b1_dat-524288_wt-32768_int8
+networks_and_layers:
+  alexnet_cifar10:
+    - 'conv1'
+    - 'conv2'
+    - 'conv3'
+    - 'conv4'
+    - 'conv5'
+  lenet_cifar10:
+    - 'conv1'
+    - 'conv2'
+  mobilenetv2_gtsrb:
+    - 'features.1.conv.1'
+    - 'features.10.conv.2'
+    - 'features.12.conv.0.0'
+    - 'features.2.conv.2'
+    - 'features.3.conv.0.0'
+    - 'features.3.conv.2'
+    - 'features.4.conv.0.0'
+    - 'features.5.conv.0.0'
+    - 'features.5.conv.2'
+    - 'features.6.conv.0.0'
+    - 'features.7.conv.2'
+    - 'features.8.conv.0.0'
+    - 'features.9.conv.2'
+  res18_cifar100:
+    - 'layer1.0.conv1'
+    - 'layer2.0.conv2'
+    - 'layer3.1.conv1'
+    - 'layer4.0.conv2'
+    - 'layer4.1.conv2'
+  res50_cifar10:
+    - 'conv1'
+    - 'layer1.0.conv2'
+    - 'layer1.2.conv1'
+    - 'layer2.1.conv1'
+    - 'layer2.1.conv2'
+    - 'layer3.0.conv3'
+    - 'layer3.2.conv2'
+    - 'layer4.1.conv2'
+    - 'layer4.1.conv3'
+  vgg11_cifar10:
+    - 'features.0'
+    - 'features.11'
+    - 'features.13'
+    - 'features.16'
+    - 'features.18'
+    - 'features.3'
+    - 'features.6'
+    - 'features.8'
+  deeplabv3_oxfordpet:
+    - 'backbone.layer2.0.conv1'
+    - 'backbone.layer2.3.conv3'
+    - 'backbone.layer3.0.conv3'
+    - 'backbone.layer3.1.conv2'
+    - 'backbone.layer4.0.conv2'
+network_input_sizes:
+  - 32
+  - 32
+  - 32
+  - 32
+  - 32
+  - 32
+  - 128
+final_output_dir: /home/miele/WORKSPACE/classes-simulator/error_models/injection_campaign_postprocessing/models_8x8_int8

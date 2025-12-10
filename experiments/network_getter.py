@@ -10,7 +10,7 @@ NetworkInfo = namedtuple('NetworkInfo', ['task', 'num_classes', 'csv_header'])
 # available network/dataset combinations, along with the task they accomplish and the number of classes (or other info if not classification); the
 # final item is the csv header to use for the corrupted tensor report
 available = {
-    'resnet50_cifar10':    NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'res50_cifar10':    NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
     'alexnet_cifar10':     NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
     'mobilenetv2_gtsrb':   NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
     'yolov11_coco':        NetworkInfo('Detection',      80, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Precision', 'Recall']),
@@ -29,7 +29,7 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
     data_dir = 'experiments/dataset_data'
 
     match id:
-        case 'resnet50_cifar10':
+        case 'res50_cifar10':
             from nets_repo.classification.cifar10.models.resnet import ResNet50
             from nets_repo.classification.cifar10.dataset import getCIFAR10
             from experiments.network_runner import classification_run

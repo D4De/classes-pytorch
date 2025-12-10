@@ -577,7 +577,7 @@ def compute_segmentation_run_metrics(
             csv_writer, module_name, error_number, spatial_pattern, num_threads)
     else:
         # save SDC tensors (and corresponding golden tensors) to file
-        storing_dir = os.path.join(outputs_path, 'saved_outputs', module_name)
+        storing_dir = os.path.join(outputs_path, 'saved_rankings', module_name)
         os.makedirs(storing_dir, exist_ok=True)
         sdc_golden_predictions = golden_predictions[sdc_mask]
         sdc_error_predictions = error_predictions[sdc_mask]
