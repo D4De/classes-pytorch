@@ -44,6 +44,12 @@ spatial_classes = [
     'Skip4',
 ]
 
+# not used in the actual postprocessing, but possibly identified by the classifier
+extra_spatial_classes = [
+    'SingleChannelAlternatedBlocks',
+    'MultipleChannelsUncategorized',
+]
+
 
 def load_config_dict():
     parser = ArgumentParser()

@@ -19,3 +19,5 @@ experiments/exp_*
 **/*.pth
 **/*.pt
 error_models/injection_campaign_postprocessing/models_*/
+**/*.tar*
+**/*.zip

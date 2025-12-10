@@ -9,6 +9,8 @@ import yaml
 
 from argparse import ArgumentParser
 
+from error_models.injection_campaign_postprocessing.postprocessing_utils import spatial_classes, extra_spatial_classes
+
 def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument('experiment_report_path', help='Filepath to the YAML experiment report produced by the simulation.')
@@ -23,7 +25,9 @@ def sum_number_tuples(t1: tuple, t2: tuple):
 
 
 def pack_report_dictionary(report_dict: dict):
+    all_spatial_classes = spatial_classes + extra_spatial_classes
     layers_dict = {}
+
     for layer_name, layer_data in report_dict['Error simulation data']['Per-layer statistics'].items():
         layers_dict[layer_name] = {}
         spatial_classes_dict = {} # maps spatial classes to tuples of shape (num_masked, sdc_safe, sdc_critical)
@@ -58,6 +62,15 @@ def pack_report_dictionary(report_dict: dict):
                 'sdc_safe'     : sdc_safe_freq,
                 'sdc_critical' : sdc_critical_freq,
             }
+        
+        # add entries with probability 0 for spatial classes that were not found in the report
+        for spatial_class in all_spatial_classes:
+            if spatial_class not in layers_dict[layer_name]:
+                layers_dict[layer_name][spatial_class] = {
+                    'masked'       : 0.0,
+                    'sdc_safe'     : 0.0,
+                    'sdc_critical' : 0.0,
+                }
 
         # add absolute frequencies to layer
         layer_total = total_masked + total_sdc_safe + total_sdc_critical
