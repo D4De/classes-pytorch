@@ -9,7 +9,7 @@ import yaml
 
 from argparse import ArgumentParser
 
-from error_models.injection_campaign_postprocessing.postprocessing_utils import spatial_classes, extra_spatial_classes
+from error_models.injection_campaign_postprocessing.postprocessing_utils import snakecase_spatial_classes
 
 def parse_arguments():
     parser = ArgumentParser()
@@ -25,7 +25,6 @@ def sum_number_tuples(t1: tuple, t2: tuple):
 
 
 def pack_report_dictionary(report_dict: dict):
-    all_spatial_classes = spatial_classes + extra_spatial_classes
     layers_dict = {}
 
     for layer_name, layer_data in report_dict['Error simulation data']['Per-layer statistics'].items():
@@ -64,7 +63,7 @@ def pack_report_dictionary(report_dict: dict):
             }
         
         # add entries with probability 0 for spatial classes that were not found in the report
-        for spatial_class in all_spatial_classes:
+        for spatial_class in snakecase_spatial_classes:
             if spatial_class not in layers_dict[layer_name]:
                 layers_dict[layer_name][spatial_class] = {
                     'masked'       : 0.0,
