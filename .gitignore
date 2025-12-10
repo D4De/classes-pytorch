@@ -18,3 +18,5 @@ experiments/exp_*
 **/*Zone.Identifier
 **/*.pth
 **/*.pt
+**/*.tar*
+**/*.zip
