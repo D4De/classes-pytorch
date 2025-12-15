@@ -21,3 +21,4 @@ experiments/exp_*
 error_models/injection_campaign_postprocessing/models_*/
 **/*.tar*
 **/*.zip
+.vscode
