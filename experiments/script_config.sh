@@ -1,0 +1,5 @@
+# NETWORKS=("alexnet_cifar10" "mobilenetv2_gtsrb" "res50_cifar10" "deeplabv3_oxfordpet")
+export NETWORKS=("alexnet_cifar10" "mobilenetv2_gtsrb" "res50_cifar10")
+export CONFIGS=("nv_8x16_b1_dat-2097152_wt-262144_int32")
+export IN=("100")
+export ERR=("160")
