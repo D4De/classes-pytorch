@@ -11,9 +11,9 @@ from ultralytics.engine.results import Results
 from classes.simulators.pytorch.pytorch_fault import PyTorchFault
 
 class ResultType(Enum):
-    MASKED: 0
-    SDC_SAFE: 1
-    SDC_CRITICAL: 2
+    MASKED = 0
+    SDC_SAFE = 1
+    SDC_CRITICAL = 2
 
 #--SINGLE METRICS--
 def accuracy_topk(scores: torch.Tensor, labels: torch.Tensor, k: int):
@@ -224,7 +224,7 @@ def yolo_coco_evaluate_corrupted(
     # first handle cases in which there are no golden boxes or no corrupted boxes
     if not golden_classes and not corrupted_classes: # both are empty: masked
         return 0, 0, 0, ResultType.MASKED
-
+    
     if not golden_classes or not corrupted_classes: # one is empty, the other is not: critical
         return 0, 0, 0, ResultType.SDC_CRITICAL
 
@@ -727,7 +727,7 @@ def compute_yolo_detection_run_metrics(
 
     # error metrics
     num_masked = num_sdc_safe = num_sdc_critical = 0
-    total_TP, total_FP, total_FN = 0
+    total_TP = total_FP = total_FN = 0
 
     for single_prediction, single_golden in zip(error_results, golden_results):
         TP, FP, FN, result = yolo_coco_evaluate_corrupted(single_golden, single_prediction, max_possible_box_distance, tolerance)

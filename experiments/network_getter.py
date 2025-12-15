@@ -10,7 +10,7 @@ NetworkInfo = namedtuple('NetworkInfo', ['task', 'num_classes', 'csv_header'])
 # available network/dataset combinations, along with the task they accomplish and the number of classes (or other info if not classification); the
 # final item is the csv header to use for the corrupted tensor report
 available = {
-    'res50_cifar10':    NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'res50_cifar10':       NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
     'alexnet_cifar10':     NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
     'mobilenetv2_gtsrb':   NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
     'yolov11_coco':        NetworkInfo('Detection',      80, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Precision', 'Recall']),

@@ -250,7 +250,7 @@ def main():
     # load the fault list metadata and get relevant info
     exp_logger.info('Loading relevant metadata from fault list')
     fault_list_info = PyTorchFaultListDynamicMetadata.load_fault_list_info(fault_list_path)
-    if not layer_names:
+    if not 'layer_names' in locals():
         layer_names = fault_list_info.injectable_layers
     num_module_faults = fault_list_info.num_module_faults
 
