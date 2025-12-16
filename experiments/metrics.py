@@ -626,7 +626,7 @@ def compute_segmentation_single_metrics(
                 recalls[current_sample].item(),
             ])
 
-            current_row += num_threads
+            current_sample += num_threads
         
         # write csv rows
         thread_lock.acquire()
