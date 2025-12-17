@@ -1,5 +1,4 @@
 import os
-import sys
 import torch
 
 from functools import partial
@@ -16,6 +15,9 @@ available = {
     'yolov11_coco':        NetworkInfo('Detection',      80, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Precision', 'Recall']),
     'deeplabv3_oxfordpet': NetworkInfo('Segmentation',    3, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'mIOU', 'Precision', 'Recall']),
 }
+
+def requires_single_metrics(id: str):
+    return id == 'yolov11_coco'
 
 def get_network_and_exp_functions(id: str, batch_size: int, device, return_model_only=False):
     """id must be in the form 'networkname_datasetname'"""
@@ -73,8 +75,14 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
             model = get_yolov11(os.path.join(weights_dir, 'yolov11'))
             if not return_model_only:
                 loader = getCOCO(os.path.join(data_dir, 'coco'), image_size, batch_size)
-                run_fn = partial(yolo_detection_run, model=model, dataloader=loader, image_size=image_size, batch_size=batch_size)
-                metrics_fn = partial(compute_yolo_detection_run_metrics, image_size=image_size)
+
+                # load cocodetection to ultralytics id mapping for the run function
+                import yaml
+                with open('other_nets/detection/coco/cocodetection_ids_to_ultralytics_ids.yaml') as f:
+                    id_mapping = yaml.load(f, yaml.SafeLoader)
+
+                run_fn = partial(yolo_detection_run, model=model, dataloader=loader, batch_size=batch_size, id_mapping=id_mapping)
+                metrics_fn = compute_yolo_detection_run_metrics
 
             # sys.path.insert(1, 'other_nets/detection/coco/models/YOLOv11')
             # from other_nets.detection.coco.dataset import getCOCO2

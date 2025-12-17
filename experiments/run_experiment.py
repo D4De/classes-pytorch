@@ -14,7 +14,7 @@ import experiments.logger as logger
 import experiments.experiment_utils as utils
 
 from experiments.args import parse_args
-from experiments.network_getter import get_network_and_exp_functions
+from experiments.network_getter import get_network_and_exp_functions, requires_single_metrics
 from experiments.results_to_dictionary import pack_report_dictionary
 
 
@@ -83,6 +83,9 @@ def main():
     tolerance               = config.get('tolerance', 0.001)
     num_threads             = config.get('num_threads', 4)
     compute_single_metrics  = config.get('compute_single_metrics', False)
+
+    # if the network explicitly requires the calculation of single metrics (e.g. YOLO), override the setting
+    compute_single_metrics = requires_single_metrics(network_dataset_id)
 
     # ensure that error models path exists
     try:
@@ -230,7 +233,7 @@ def main():
     #------------------------------------------------------------
     # START ERROR INJECTION
     # these total metrics are meaningless in terms of individual SEUs, they are just for report completeness
-    total_injected_errors = total_masked = total_sdc_safe = total_sdc_critical = 0
+    total_masked = total_sdc_safe = total_sdc_critical = 0
 
     layer_metrics_dict = {} # this will store the final metrics for each layer/fault injection pair
 
@@ -318,9 +321,6 @@ def main():
                 total_masked       += masked
                 total_sdc_safe     += sdc_safe
                 total_sdc_critical += sdc_critical
-                
-
-            total_injected_errors += num_faults_per_module * num_samples
         
 
     # injection done for all modules
@@ -335,7 +335,7 @@ def main():
 
     # add overall report data and save
     experiment_report_data['Error simulation data'] = {
-        'Total number of injected errors' : total_injected_errors,
+        'Total number of injected errors' : total_masked + total_sdc_safe + total_sdc_critical,
         'Total number of masked errors'   : total_masked,
         'Total number of safe SDCs'       : total_sdc_safe,
         'Total number of critical SDCs'   : total_sdc_critical,
