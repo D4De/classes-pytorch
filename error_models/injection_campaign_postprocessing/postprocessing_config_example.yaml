@@ -1,6 +1,6 @@
-outputs_base_path: /home/miele/WORKSPACE/tcad2025/outdir/benchmarks
-nvdla_config_id: nv_8x8_b1_dat-524288_wt-32768_int8
-networks_and_layers:
+outputs_base_path: /home/miele/WORKSPACE/tcad2025/outdir/benchmarks # location of all injection campaign output files
+nvdla_config_id: nv_8x8_b1_dat-524288_wt-32768_int8 # id of the NVDLA configuration used for the campaign
+networks_and_layers: # list of network (ids) to process; for each network, the list of layers to process must be provided 
   alexnet_cifar10:
     - 'conv1'
     - 'conv2'
@@ -55,7 +55,7 @@ networks_and_layers:
     - 'backbone.layer3.0.conv3'
     - 'backbone.layer3.1.conv2'
     - 'backbone.layer4.0.conv2'
-network_input_sizes:
+network_input_sizes: # one input image size for each network (inputs are assumed to be square, so provide single integers)
   - 32
   - 32
   - 32
@@ -63,4 +63,4 @@ network_input_sizes:
   - 32
   - 32
   - 128
-final_output_dir: /home/miele/WORKSPACE/classes-simulator/error_models/injection_campaign_postprocessing/models_8x8_int8
+final_output_dir: /home/miele/WORKSPACE/classes-simulator/error_models/injection_campaign_postprocessing/models_8x8_int8 # location to save the postprocessing outputs to
