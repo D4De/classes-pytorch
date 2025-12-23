@@ -151,13 +151,11 @@ def yolo_detection_run(
     dataloader: torch.utils.data.DataLoader,
     injected_module: torch.nn.Module,
     error_simulator_pytorch_hook,
+    id_mapping: dict,
     use_single_batch=True,
     image_size=128,
     batch_size=64,
 ):
-    with open('other_nets/detection/coco/cocodetection_ids_to_ultralytics_ids.yaml') as f:
-        id_mapping = yaml.load(f, yaml.SafeLoader)
-
     if use_single_batch:
         for imgs, targets in dataloader: break
         with torch.no_grad():
@@ -167,7 +165,8 @@ def yolo_detection_run(
         # for the box, but its ids actually correspond to the original COCO annotations and do not line up with the ids used
         # by Ultralytics, thus causing evaluation errors. This needs to be fixed by mapping to the proper ids.
         for target in targets:
-            target['labels'].apply_(lambda x: id_mapping[x])
+            if 'labels' in target:
+                target['labels'].apply_(lambda x: id_mapping[x])
         targets = list(targets)
 
         with applied_hook(injected_module, error_simulator_pytorch_hook), torch.no_grad():
