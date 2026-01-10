@@ -73,8 +73,8 @@ def main():
         key = 'fault_list_path'
         fault_list_path: str          = os.path.realpath(config[key])
 
-        key = 'SDC_frequency_dict_path'
-        SDC_frequency_dict_path: str = os.path.realpath(config[key])
+        key = 'SDC_frequencies_path'
+        SDC_frequencies_path: str = os.path.realpath(config[key])
     except KeyError:
         raise ValueError(f'Required key {key} in experiment configuration file is missing.')
 
@@ -205,11 +205,10 @@ def main():
         
 
         # step 5: save SDC frequency dictionary for later postprocessing
-        exp_logger.info('Saving SDC frequency YAML file.')
-        if not SDC_frequency_dict_path.endswith('.yaml'):
-            SDC_frequency_dict_path = SDC_frequency_dict_path + '.yaml'
-        with open(SDC_frequency_dict_path, 'w') as f:
-            yaml.dump(layer_sdc_frequencies, f, sort_keys=False)
+        exp_logger.info('Saving SDC and class frequencies file.')
+        if not SDC_frequencies_path.endswith('.xlsx'):
+            SDC_frequencies_path = SDC_frequencies_path + '.xlsx'
+        layer_sdc_frequencies.to_excel(SDC_frequencies_path, sheet_name='Frequencies', index_label='Layer')
 
 
         # step 6: generate fault list       

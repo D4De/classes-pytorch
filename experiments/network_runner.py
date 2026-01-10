@@ -152,9 +152,9 @@ def yolo_detection_run(
     injected_module: torch.nn.Module,
     error_simulator_pytorch_hook,
     id_mapping: dict,
+    image_size,
+    batch_size,
     use_single_batch=True,
-    image_size=128,
-    batch_size=64,
 ):
     if use_single_batch:
         for imgs, targets in dataloader: break

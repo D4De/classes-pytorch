@@ -23,7 +23,7 @@ batch_size: $4
 uniform_spatial_classes: ${UNIFORM_SPATIAL_CLASSES}
 num_faults_per_module: $3
 fault_list_path: $5/fault_list_${3}errors.tar
-SDC_frequency_dict_path: $5/${SDC_FREQUENCIES_FILE_NAME}
+SDC_frequencies_path: $5/${SDC_FREQUENCIES_FILE_NAME}
 tolerance: ${TOLERANCE}
 compute_single_metrics: ${COMPUTE_SINGLE_METRICS}
 num_threads: ${NUM_THREADS}" > $6

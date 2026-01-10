@@ -71,7 +71,7 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
             from other_nets.detection.coco.dataset import getCOCO
             from experiments.network_runner import yolo_detection_run
             from experiments.metrics import compute_yolo_detection_run_metrics
-            image_size: int = 128
+            image_size: int = 640
             model = get_yolov11(os.path.join(weights_dir, 'yolov11'))
             if not return_model_only:
                 loader = getCOCO(os.path.join(data_dir, 'coco'), image_size, batch_size)
@@ -81,7 +81,7 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
                 with open('other_nets/detection/coco/cocodetection_ids_to_ultralytics_ids.yaml') as f:
                     id_mapping = yaml.load(f, yaml.SafeLoader)
 
-                run_fn = partial(yolo_detection_run, model=model, dataloader=loader, batch_size=batch_size, id_mapping=id_mapping)
+                run_fn = partial(yolo_detection_run, model=model, dataloader=loader, batch_size=batch_size, id_mapping=id_mapping, image_size=image_size)
                 metrics_fn = compute_yolo_detection_run_metrics
 
         case 'deeplabv3_oxfordpet':

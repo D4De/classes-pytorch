@@ -44,9 +44,11 @@ num_faults_per_module: 10
 fault_list_path: ./experiments/exp_resnet50_cifar10/resnet50_cifar10_fault_list.tar
 # --------------------------------------------------------------------------------------------------
 
-# Path to save the dictionary {module_name: sdc_frequency} to. The generation process is the same as the fault list's.
+# An experiment generates a dataframe listing, for each injectable layer, the SDC frequency and all individual spatial class
+# frequencies; this dataframe can then be used to weigh the results.
+# This is the path to save the dataframe to. Follows the same restrictions of the fault list.
 # Can be relative.
-SDC_frequency_dict_path: ./experiments/exp_alexnet_cifar10/SDC_frequencies.yaml
+SDC_frequencies_path: ./experiments/exp_alexnet_cifar10/SDC_frequencies.xlsx
 # --------------------------------------------------------------------------------------------------
 
 # Tolerance level for float value equality.

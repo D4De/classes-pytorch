@@ -20,6 +20,11 @@ hyperparameters = [
     'Padding',
 ]
 
+non_SDC_fields = [
+    'Masked',
+    'Crash+Hang',
+]
+
 def load_error_models(model_folder_path: str, model_df_filepath: str):
     """
     Loads the error model json files and the corresponding dataframe with the models' parameters.
@@ -72,7 +77,7 @@ def interpolation_nearest_neighbors_L2(
 ):
     """
     Selects the 'num_neighbors' closest models to the given one using the L2 distance and the normalized hyperparameters.
-    Builds a new error model and assigns it a name. Returns the new name, the new model and the interpolated SDC frequency for it.
+    Builds a new error model and assigns it a name. Returns the new name, the new model and the interpolated frequencies for it.
     """
     new_model_num = len(error_models_df) + 1
     new_model_name = f'newmerge_{new_model_num}'
@@ -102,10 +107,7 @@ def interpolation_nearest_neighbors_L2(
     ])
     error_models_df.loc[new_model_name] = new_row
 
-    # extract new SDC frequency
-    new_model_SDC = float(error_models_df.at[new_model_name, 'SDC'])
-
-    return new_model_name, new_model_SDC
+    return new_model_name, new_row_frequencies
 
 
 def map_layers_to_error_models(
@@ -118,17 +120,18 @@ def map_layers_to_error_models(
     generator_mapping: Mapping[str, PatternGenerator] = get_default_generators(),
     layout="CHW",
     interpolation_fn=interpolation_nearest_neighbors_L2,
-) -> tuple[dict[str, float], dict[str, FaultGenerator]]:
+) -> tuple[pd.DataFrame, dict[str, FaultGenerator]]:
     """
     Uses the hyperparameters of each injectable layer to find a matching error model (either an existing one or by interpolating
     existing ones). At the same time, the SDC frequency for each layer is determined via its error model and stored in a dictionary.
     The selected error models are then used to build a set of fault generators.
 
-    Two dictionaries are returned:
-    - the first one maps a layer to its SDC frequency;
-    - the second one maps a layer to its fault generator.
+    The first return value is a DataFrame mapping each layer to its SDC and spatial class frequencies.
+    The second return value is a dictionary mapping each layer to its fault generator.
     """
-    sdc_frequencies: dict[float] = {} # layer name to sdc frequency
+    sdc_frequencies = pd.DataFrame(columns=error_models_df.columns) # layer name to frequencies
+    sdc_frequencies.drop(columns=hyperparameters + non_SDC_fields, inplace=True) # remove unneccessary columns
+    
     fault_generators: dict[FaultGenerator] = {} # error model name to fault generator
     layer_to_fault_generator: dict[FaultGenerator] = {}
 
@@ -154,7 +157,10 @@ def map_layers_to_error_models(
         for model_name, model_hyper in error_models_df[hyperparameters].iterrows():
             if np.allclose(layer_hyperparameters, model_hyper):
                 logger.info(f'Found exact match for error model: {model_name}.')
-                sdc_frequencies[layer_name] = float(error_models_df.at[model_name, 'SDC'])
+
+                model_df_row: pd.Series = error_models_df.loc[model_name].copy() # copy the model row
+                model_df_row.drop(hyperparameters + non_SDC_fields, inplace=True) # drop unnecessary columns
+                sdc_frequencies.loc[layer_name] = model_df_row # add new row to the dataframe
                 
                 if model_name not in fault_generators:
                     # fault generator not yet built: create it
@@ -171,10 +177,10 @@ def map_layers_to_error_models(
         # no matching model: create a new one via interpolation
         else:
             logger.info('No matching error model available. Proceeding with interpolation.')
-            new_model_name, new_model_sdc = interpolation_fn(layer_hyperparameters, error_models_df, error_model_dicts)
+            new_model_name, new_model_frequencies = interpolation_fn(layer_hyperparameters, error_models_df, error_model_dicts)
 
             # record SDC frequency
-            sdc_frequencies[layer_name] = new_model_sdc
+            sdc_frequencies.loc[layer_name] = new_model_frequencies
 
             # build new fault generator
             error_model = ErrorModel.from_json_dict(error_model_dicts[new_model_name])
