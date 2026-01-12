@@ -1,5 +1,4 @@
 import os
-import re
 import yaml
 import pandas as pd
 
@@ -178,14 +177,24 @@ if __name__ == '__main__':
     else:
         with pd.ExcelWriter(metrics_excel_path, mode='a', engine='openpyxl', if_sheet_exists='error') as writer:
             metrics_df.to_excel(writer, sheet_name=metrics_sheet_name, index_label='Layer')
+    
 
-
-    if not os.path.exists(vulnerability_excel_path) or network_dataset_id not in pd.ExcelFile(vulnerability_excel_path).sheet_names:
-        # create new vulnerability dataframe
+    if not os.path.exists(vulnerability_excel_path):
+        # file does not exist yet or file exists, but sheet does not: create new vulnerability dataframe
         vuln_df = pd.DataFrame(index=vulnerability_layer_values.keys())
         vuln_df.index.name = 'Layer'
+        vuln_df.loc[:, configuration_id] = pd.Series(vulnerability_layer_values)
+        vuln_df.to_excel(vulnerability_excel_path, sheet_name=network_dataset_id, index_label='Layer')
     else:
-        vuln_df = pd.read_excel(vulnerability_excel_path, sheet_name=network_dataset_id, header=0, index_col=0)
-    
-    vuln_df.loc[:, configuration_id] = pd.Series(vulnerability_layer_values)
-    vuln_df.to_excel(vulnerability_excel_path, sheet_name=network_dataset_id, index_label='Layer')
+        if network_dataset_id in pd.ExcelFile(vulnerability_excel_path).sheet_names:
+            # file and sheet both exist: append to file
+            vuln_df = pd.read_excel(vulnerability_excel_path, sheet_name=network_dataset_id, header=0, index_col=0)
+        else:
+            # sheet does not exist: create new dataframe
+            vuln_df = pd.DataFrame(index=vulnerability_layer_values.keys())
+            vuln_df.index.name = 'Layer'
+
+        vuln_df.loc[:, configuration_id] = pd.Series(vulnerability_layer_values)
+
+        with pd.ExcelWriter(vulnerability_excel_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
+            vuln_df.to_excel(writer, sheet_name=network_dataset_id, index_label='Layer')
