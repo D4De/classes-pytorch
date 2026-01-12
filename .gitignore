@@ -3,6 +3,7 @@ classes_core/__pycache__
 .idea
 examples/pytorch/mnist_data
 examples/pytorch/data/MNIST
+examples/resnet50/data/
 mnist
 load.py
 __pycache__
