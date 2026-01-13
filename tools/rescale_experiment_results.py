@@ -111,6 +111,7 @@ if __name__ == '__main__':
             # COMPUTE METRICS
 
             total_network_vuln = 0.0
+            num_layers = len(applev_dict.keys())
 
             # check that all 3 layer lists are the same and create the rows
             for layer_name, layer_dict in applev_dict.items():
@@ -143,11 +144,11 @@ if __name__ == '__main__':
                             scale_factor = 0.0
 
                     # scale probabilities
-                    app_masked_prob   = scale_factor * spatial_class_dict['masked']
-                    app_safe_prob     = scale_factor * spatial_class_dict['sdc_safe']
-                    app_critical_prob = scale_factor * spatial_class_dict['sdc_critical']
+                    app_masked_prob   = spatial_class_dict['masked']
+                    app_safe_prob     = spatial_class_dict['sdc_safe']
+                    app_critical_prob = spatial_class_dict['sdc_critical']
 
-                    # add critical probability to overall dictionary
+                    # add critical probability to overall dictionary, averaging it over all the layers
                     if spatial_class_name not in sp_class_crit_probs: # add spatial class dictionary if necessary
                         sp_class_crit_probs[spatial_class_name] = {}
                     if network_id not in sp_class_crit_probs[spatial_class_name]: # add network dictionary if necessary
@@ -155,12 +156,12 @@ if __name__ == '__main__':
                     if short_id not in sp_class_crit_probs[spatial_class_name]: # initialize configuration count if necessary
                         sp_class_crit_probs[spatial_class_name][network_id][short_id] = 0.0
 
-                    sp_class_crit_probs[spatial_class_name][network_id][short_id] += app_critical_prob
+                    sp_class_crit_probs[spatial_class_name][network_id][short_id] += app_critical_prob / num_layers
 
                     # update total probabilities
-                    total_app_masked_prob   += app_masked_prob
-                    total_app_safe_prob     += app_safe_prob
-                    total_app_critical_prob += app_critical_prob
+                    total_app_masked_prob   += scale_factor * app_masked_prob
+                    total_app_safe_prob     += scale_factor * app_safe_prob
+                    total_app_critical_prob += scale_factor * app_critical_prob
 
                 # rescale total layer frequencies by SDC frequency (probability for the SEU to affect the layer output)
                 arch_masked_prob   = (1.0 - layer_sdc_freq) * total_app_masked_prob
