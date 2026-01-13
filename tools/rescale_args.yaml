@@ -1,0 +1,40 @@
+# Path to the experiment directory
+experiment_base_path: ''
+
+# Path to the Excel file that will be produced
+output_excel_path: ''
+
+# If True, specifies that the spatial classes for these experiments were randomly sampled; otherwise, the frequencies will
+# be weighed
+random_spatial_classes: False
+
+# List of network_dataset IDs
+network_dataset_ids:
+  - 'alexnet_cifar10'
+  - 'mobilenetv2_gtsrb'
+  - 'res50_cifar10'
+  - 'deeplabv3_oxfordpet'
+
+# List of hardware configurations used in the experiments
+configuration_ids:
+  - nv_8x8_b1_dat-524288_wt-32768_int8
+  - nv_16x16_b1_dat-524288_wt-65536_int8
+  - nv_16x32_b1_dat-524288_wt-131072_int8
+  - nv_8x8_b1_dat-1048576_wt-65536_int16
+  - nv_32x16_b1_dat-1048576_wt-131072_int16
+  - nv_32x32_b1_dat-1048576_wt-262144_int16
+  - nv_32x8_b1_dat-2097152_wt-131072_int32
+  - nv_8x16_b1_dat-2097152_wt-262144_int32
+  - nv_32x32_b1_dat-2097152_wt-524288_int32
+
+# List of shortened names for the configurations
+short_configuration_ids:
+  - 8x8_int8
+  - 16x16_int8
+  - 16x32_int8
+  - 8x8_int16
+  - 32x16_int16
+  - 32x32_int16
+  - 32x8_int32
+  - 8x16_int32
+  - 32x32_int32
