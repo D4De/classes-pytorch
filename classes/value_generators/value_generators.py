@@ -258,9 +258,16 @@ def out_of_range_value_generator(
             size=(floats_with_opposite_sign_choices.sum(),),
             dtype=uint_type,
         ).view(float_type)
+
+        # FIX
+        low = negative_zero_ieee754
+        high = uint_repr(a)
+        if low >= high:
+            high = low + 1
+            
         floats_a_to_zero_values = np.random.randint(
-            negative_zero_ieee754,
-            uint_repr(a),
+            low,
+            high,
             size=(floats_a_to_zero_choices.sum(),),
             dtype=uint_type,
         ).view(float_type)
