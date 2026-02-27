@@ -11,7 +11,6 @@ def merge_matching_layers(complete_df: pd.DataFrame, initial_models_dir: str, me
     model. Builds a new layer dataframe with each group replaced by its merged row. At the same time, the error models
     corresponding to the groups are also merged."""
     merged_model_index = 0
-    freq_cols = utils.macroscopic_results + utils.spatial_classes
 
     for group_values, group in complete_df.groupby(by=utils.hyperparameters):
         group_layers = group.index
@@ -28,7 +27,7 @@ def merge_matching_layers(complete_df: pd.DataFrame, initial_models_dir: str, me
             hyper_values = group.iloc[0][utils.hyperparameters]
 
             # average the frequency columns
-            freq_df = group[freq_cols]
+            freq_df = group.drop(columns=utils.hyperparameters)
             freq_averages = freq_df.mean()
 
             new_row = pd.concat([

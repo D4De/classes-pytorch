@@ -9,7 +9,7 @@ import error_models.injection_campaign_postprocessing.postprocessing_utils as ut
 def check_layers(outputs_base_path: str, nvdla_configuration: str, networks_and_layers: dict):
     """
     Scans the output directories specified in the configuration file and checks if the layers are complete, i.e. if they've passed
-    the first phase of postprocessing and have a campaignout.csv and corresponding error model json file each.
+    the first phase of postprocessing and have a campaignout.csv, class_frequencies.csv and corresponding error model json file each.
     Each network output directory should also contain a <layer>.yaml file for each layer in the whole network.
     
     An error is raised as soon as an incomplete layer is found.
@@ -18,6 +18,7 @@ def check_layers(outputs_base_path: str, nvdla_configuration: str, networks_and_
         - yaml_file_paths\\
         - layer_name:\\
             -- campaignout_path\\
+            -- class_frequencies_path\\
             -- error_model_path\\
             -- hw_unit_output_dirs
 
@@ -54,6 +55,11 @@ def check_layers(outputs_base_path: str, nvdla_configuration: str, networks_and_
             if not os.path.exists(campaignout_path):
                 raise ValueError(f'Layer {layer_name} of network {network} is missing its campaignout.csv file')
             
+            # check existence of class_frequencies.csv
+            class_frequencies_path = os.path.join(layer_dir, 'class_frequencies.csv')
+            if not os.path.exists(class_frequencies_path):
+                raise ValueError(f'Layer {layer_name} of network {network} is missing its class_frequencies.csv file')
+
             # check existence of error model directory
             classes_dir_path = os.path.join(layer_dir, 'classes', 'classes')
             if not os.path.isdir(classes_dir_path):
@@ -76,9 +82,10 @@ def check_layers(outputs_base_path: str, nvdla_configuration: str, networks_and_
 
             # add layer entry
             final_paths[network][layer_name] = {
-                'campaignout_path'    : campaignout_path,
-                'error_model_path'    : error_model_filepath,
-                'hw_unit_output_dirs' : hw_unit_dirs,
+                'campaignout_path'          : campaignout_path,
+                'class_frequencies_path'    : class_frequencies_path,
+                'error_model_path'          : error_model_filepath,
+                'hw_unit_output_dirs'       : hw_unit_dirs,
             }
 
     return final_paths
@@ -102,6 +109,11 @@ def copy_reports(filepaths_dict: dict, reports_dir: str):
 
             # copy campaignout.csv
             src_path = layer_paths['campaignout_path']
+            dst_path = os.path.join(layer_dir, os.path.basename(src_path))
+            shutil.copyfile(src_path, dst_path)
+
+            # copy class_frequencies.csv
+            src_path = layer_paths['class_frequencies_path']
             dst_path = os.path.join(layer_dir, os.path.basename(src_path))
             shutil.copyfile(src_path, dst_path)
 
@@ -129,6 +141,7 @@ def build_layer_df_and_adjust_models(filepaths_dict: dict, initial_models_dir: s
     The new error models are saved in the provided directory.
     """
     layer_df_rows = []
+    channel_class_freqs_rows = []
 
     for network_name, network_dict in filepaths_dict.items():
         for layer_name, layer_paths in network_dict.items():
@@ -136,9 +149,14 @@ def build_layer_df_and_adjust_models(filepaths_dict: dict, initial_models_dir: s
 
             # get layer output frequencies from campaignout
             new_layer_df_row = pd.read_csv(layer_paths['campaignout_path']).iloc[-1]
+
             # set layer id
             new_layer_df_row['Unit'] = layer_id
             layer_df_rows.append(new_layer_df_row)
+
+            # get channel class frequencies
+            channel_class_frequencies_row = pd.read_csv(layer_paths['class_frequencies_path']).iloc[-1].drop(columns=['unit'])
+            channel_class_freqs_rows.append(channel_class_frequencies_row)
 
             # load the error model and update its frequencies
             error_model = replace_error_model_frequencies(layer_paths['error_model_path'], new_layer_df_row)
@@ -174,6 +192,10 @@ def build_layer_df_and_adjust_models(filepaths_dict: dict, initial_models_dir: s
 
     # change column order and set index
     layer_df = layer_df.reindex(columns=['Masked', 'SDC', 'Crash+Hang'] + utils.spatial_classes)
+
+    # append channel class frequency rows
+    channel_class_freq_df = pd.DataFrame(channel_class_freqs_rows)
+    layer_df = pd.concat([layer_df, channel_class_freq_df], axis=1)
 
     return layer_df
 
