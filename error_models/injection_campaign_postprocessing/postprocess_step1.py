@@ -104,6 +104,9 @@ def copy_reports(filepaths_dict: dict, reports_dir: str):
 
         # make layer directories
         for layer_name, layer_paths in network_dict.items():
+            if layer_name == 'yaml_file_paths':
+                continue
+
             layer_dir = os.path.join(network_dir, layer_name)
             os.makedirs(layer_dir, exist_ok=True)
 
@@ -145,6 +148,9 @@ def build_layer_df_and_adjust_models(filepaths_dict: dict, initial_models_dir: s
 
     for network_name, network_dict in filepaths_dict.items():
         for layer_name, layer_paths in network_dict.items():
+            if layer_name == 'yaml_file_paths':
+                continue
+
             layer_id = f'{network_name}_{layer_name}'
 
             # get layer output frequencies from campaignout
@@ -155,7 +161,8 @@ def build_layer_df_and_adjust_models(filepaths_dict: dict, initial_models_dir: s
             layer_df_rows.append(new_layer_df_row)
 
             # get channel class frequencies
-            channel_class_frequencies_row = pd.read_csv(layer_paths['class_frequencies_path']).iloc[-1].drop(columns=['unit'])
+            channel_class_frequencies_row = pd.read_csv(layer_paths['class_frequencies_path']).iloc[-1]
+            channel_class_frequencies_row['unit'] = layer_id
             channel_class_freqs_rows.append(channel_class_frequencies_row)
 
             # load the error model and update its frequencies
@@ -195,6 +202,9 @@ def build_layer_df_and_adjust_models(filepaths_dict: dict, initial_models_dir: s
 
     # append channel class frequency rows
     channel_class_freq_df = pd.DataFrame(channel_class_freqs_rows)
+    channel_class_freq_df.rename(columns={'unit': 'Layer'}, inplace=True)
+    channel_class_freq_df.set_index('Layer', inplace=True)
+
     layer_df = pd.concat([layer_df, channel_class_freq_df], axis=1)
 
     return layer_df
