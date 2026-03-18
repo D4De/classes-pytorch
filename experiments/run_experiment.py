@@ -210,7 +210,6 @@ def main():
             SDC_frequencies_path = SDC_frequencies_path + '.xlsx'
         layer_sdc_frequencies.to_excel(SDC_frequencies_path, sheet_name='Frequencies', index_label='Layer')
 
-
         # step 6: generate fault list       
         fault_list = PyTorchFaultListDynamic(
             layer_names,

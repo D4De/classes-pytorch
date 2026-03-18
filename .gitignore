@@ -16,6 +16,7 @@ data/*
 
 experiments/dataset_data/**
 experiments/exp_*
+experiments_single_channel
 **/*Zone.Identifier
 **/*.pth
 **/*.pt

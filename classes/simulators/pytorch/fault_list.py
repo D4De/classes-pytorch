@@ -115,9 +115,11 @@ class PyTorchFaultListDynamic:
             current_batch = 0
             # get the spatial classes of the error model and generate num_batches batches for each one
             # for spatial_class_name in fault_generator.get_available_spatial_classes():
-            for spatial_class_name in ['full_channels', 'rectangles']:
+            class_list = set(fault_generator.get_available_spatial_classes()).intersection(['full_channels', 'rectangles'])
+
+            for spatial_class_name in class_list:
                 print(f'Generating {spatial_class_name}')
-                
+
                 for it in range(current_batch, current_batch + num_batches):
                     fault_batch = fault_generator.generate_batched_mask(
                         output_shape, 
