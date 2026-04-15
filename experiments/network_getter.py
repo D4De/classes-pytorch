@@ -9,11 +9,13 @@ NetworkInfo = namedtuple('NetworkInfo', ['task', 'num_classes', 'csv_header'])
 # available network/dataset combinations, along with the task they accomplish and the number of classes (or other info if not classification); the
 # final item is the csv header to use for the corrupted tensor report
 available = {
-    'res50_cifar10':       NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
-    'alexnet_cifar10':     NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
-    'mobilenetv2_gtsrb':   NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
-    'yolov11_coco':        NetworkInfo('Detection',      80, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Precision', 'Recall']),
-    'deeplabv3_oxfordpet': NetworkInfo('Segmentation',    3, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'mIOU', 'Precision', 'Recall']),
+    'res50_cifar10':                NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'res9_cifar10':                 NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'alexnet_cifar10':              NetworkInfo('Classification', 10, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'mobilenetv2_gtsrb':            NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'mobilenetv2-large_gtsrb':      NetworkInfo('Classification', 43, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Topclass golden', 'Topclass corrupted', 'Kendall Tau', 'RBO', 'Rest of golden ranking', 'Rest of corrupted ranking']),
+    'yolov11_coco':                 NetworkInfo('Detection',      80, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'Precision', 'Recall']),
+    'deeplabv3_oxfordpet':          NetworkInfo('Segmentation',    3, ['Layer name', 'Error number', 'Spatial pattern', 'Safe', 'mIOU', 'Precision', 'Recall']),
 }
 
 def requires_single_metrics(id: str):
@@ -43,6 +45,18 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
                 run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
                 metrics_fn = compute_classification_run_metrics
 
+        case 'res9_cifar10':
+            from nets_repo.classification.cifar10.models.resnet9 import ResNet9
+            from nets_repo.classification.cifar10.dataset import getCIFAR10
+            from experiments.network_runner import classification_run
+            from experiments.metrics import compute_classification_run_metrics
+            model = ResNet9(in_channels=3, num_classes=network_info.num_classes)
+            model.load_state_dict(torch.load(os.path.join(weights_dir, 'resnet9', 'fp32_res9_cifar10.pth')))
+            if not return_model_only:
+                _, loader, _ = getCIFAR10(os.path.join(data_dir, 'cifar10'), (32,32), batch_size, shuffle_test=True)
+                run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
+                metrics_fn = compute_classification_run_metrics
+
         case 'alexnet_cifar10':
             from nets_repo.classification.cifar10.models.alexnet import AlexNet
             from nets_repo.classification.cifar10.dataset import getCIFAR10
@@ -55,14 +69,15 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
                 run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
                 metrics_fn = compute_classification_run_metrics
 
-        case 'mobilenetv2_gtsrb':
+        case 'mobilenetv2_gtsrb' | 'mobilenetv2-large_gtsrb':
             from other_nets.classification.gtsrb.models.mobilenetv2 import get_mobilenetv2_model
             from other_nets.classification.gtsrb.dataset import getGTSRB
             from experiments.network_runner import classification_run
             from experiments.metrics import compute_classification_run_metrics
             model = get_mobilenetv2_model(43, os.path.join(weights_dir, 'mobilenetv2', 'mobilenetv2_gtsrb_best.pth'))
             if not return_model_only:
-                loader = getGTSRB(os.path.join(data_dir, 'gtsrb'), batch_size, 0)
+                image_size = 128 if id == 'mobilenetv2-large_gtsrb' else 32
+                loader = getGTSRB(os.path.join(data_dir, 'gtsrb'), batch_size, 0, image_size=image_size)
                 run_fn = partial(classification_run, model=model, dataloader=loader, device=device, num_classes=network_info.num_classes)
                 metrics_fn = compute_classification_run_metrics
 
