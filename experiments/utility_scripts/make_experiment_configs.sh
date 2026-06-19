@@ -1,5 +1,7 @@
 #!/usr/bin/bash
 
+# RUN FROM utility_scripts DIRECTORY
+
 workdir=`pwd`
 source ${workdir}/script_config.sh
 cd ${CLASSES_DIR}
@@ -7,29 +9,32 @@ cd ${CLASSES_DIR}
 make_config_file() {
 # ARGS
 # 1: configuration name
-# 2: network and dataset name
-# 3: number of errors per layer
-# 4: num of inputs
-# 5: experiment directory
-# 6: output filepath
+# 2: short configuration name
+# 3: network and dataset name
+# 4: number of errors per layer
+# 5: num of inputs
+# 6: experiment directory
+# 7: output filepath
 echo "\
-experiment_name: $2 $4 inputs $3 errors
-network_dataset_id: $2
-hw_config_id: ${HW_CONFIG_ID}
+experiment_name: $3 $5 inputs $4 errors
+network_dataset_id: $3
+hw_config_id: $2
 error_models_path: ${ERROR_MODELS_DIR}/$1
 error_models_df_path: ${ERROR_MODELS_DIR}/$1/${MODELS_DF_NAME}
 use_single_batch: ${USE_SINGLE_BATCH}
-batch_size: $4
+batch_size: $5
 uniform_spatial_classes: ${UNIFORM_SPATIAL_CLASSES}
-num_faults_per_module: $3
-fault_list_path: $5/fault_list_${3}errors.tar
-SDC_frequencies_path: $5/${SDC_FREQUENCIES_FILE_NAME}
+num_faults_per_module: $4
+fault_list_path: $6/fault_list_${4}errors.tar
+SDC_frequencies_path: $6/${SDC_FREQUENCIES_FILE_NAME}
 tolerance: ${TOLERANCE}
 compute_single_metrics: ${COMPUTE_SINGLE_METRICS}
-num_threads: ${NUM_THREADS}" > $6
+num_threads: ${NUM_THREADS}" > $7
 }
 
-for config in "${CONFIGS[@]}"; do
+for i in "${!CONFIGS[@]}"; do
+    config="${CONFIGS[$i]}"
+    short_config="${SHORT_IDS[$i]}"
     for network in "${NETWORKS[@]}"; do
         for num_err in "${ERR[@]}"; do
             for num_input in "${IN[@]}"; do
@@ -40,7 +45,7 @@ for config in "${CONFIGS[@]}"; do
                 if [ ! -d "${single_exp_dir}" ]; then
                     mkdir -p "${single_exp_dir}"
                 fi
-                make_config_file $config $network $num_err $num_input $single_exp_dir $conf_file_path
+                make_config_file $config $short_config $network $num_err $num_input $single_exp_dir $conf_file_path
             done
         done
     done

@@ -1,5 +1,7 @@
 #!/usr/bin/bash
 
+# RUN FROM utility_scripts DIRECTORY
+
 workdir=`pwd`
 source ${workdir}/script_config.sh
 

@@ -194,6 +194,11 @@ def yolo_detection_run(
     return golden_results, targets, error_results
 
 
+
+#----------------------------------
+#| THE FUNCTIONS BELOW ARE LEGACY |
+#----------------------------------
+
 #--GOLDEN RUNS--
 def classification_golden_run(
         model: torch.nn.Module,

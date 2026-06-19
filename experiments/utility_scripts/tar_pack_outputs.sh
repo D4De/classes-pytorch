@@ -1,5 +1,7 @@
 #!/usr/bin/bash
 
+# RUN FROM utility_scripts DIRECTORY
+
 compress_saved_outputs() {
     tar -c -I 'xz -9 -T0' -f $1.tar.xz $1 &&
     rm -r $1

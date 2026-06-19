@@ -240,69 +240,8 @@ python -m examples.advanced
 
 from the root folder of the repo.
 
-## Obtaining error models, configuring experiments and running them (for NVDLA)
+**NOTE**: these examples are outdated and incomplete as of 2025. We suggest skipping them.
 
-The `experiments` directory contains all scripts needed to set up and run error simulation experiments using sets of error models specifically derived from NVDLA fault injection campaigns. However, only a few scripts and files actually depend on the structure of NVDLA campaign outputs and the following methods can be easily extended to results from other sources. Similarly, these methods currently only work for convolutional layers, but possible extensions should be simple.
+# Simulator Extension (2025)
 
-### Running injection campaign postprocessing.
-
-In terms of error models, `error_models/injection_campaign_postprocessing` contains a few scripts that transform the NVDLA outputs into error models and, importantly, produce a `.xlsx` file, usually called `unique_complete_df.xlsx`; this file is used by the experiment scripts to interpolate the available error models when selecting one for each injectable layer of a network. There is no implementation-specific reason for this file to be in Excel format, it is just a matter of convenience in case it needs to be manually inspected.
-
-Once the injection campaign results for a configuration are ready, create a postprocessing directory to store the results (e.g. `models_8x8_int8`) and copy `error_models/injection_campaign_postprocessing/postprocessing_config_example.yaml` into it. Rename this file if you want and edit this file to fit the configuration and networks you have available, then call (from the CLASSES root directory):
-```
-python -m error_models.injection_campaign_postprocessing_postprocess_step1 <path/to/YAML/configuration/file>
-```
-This first step produces an intermediate "step1" `.xlsx` file in the postprocessing directory. Following the step 1 script's output directions, inspect the file and identify possible outlier layers to be discarded (note that several Z-score figures have already been calculated to make this process quicker). If you find any outlier, delete the corresponding row(s) from the first sheet of the file, then save it and run:
-```
-python -m error_models.injection_campaign_postprocessing_postprocess_step2 <path/to/YAML/configuration/file>
-```
-This step produces, aside from `step2_unique_complete_df.xlsx`, a "reconstruction test" Excel file. Before you proceed, examine this file and look at the rightmost column: a cell which displays "True" indicates that the model in its row was unable to be accurately reconstructed via interpolation of the other models. If there is no background knowledge requiring you to keep that model (for example, you may know that layer to be particularly vulnerable when compared with the other layers), consider deleting the model's row from `step2_unique_complete_df.xlsx` before moving on.
-
-Once you're done, move all error models from the postprocessing subdirectory `merged_models` to the final model storage directory you will use for the experiments, along with `step2_unique_complete_df.xlsx`, which, as mentioned previously, is typically renamed to just `unique_complete_df.xlsx`. By convention, this final directory is located in `error_models/conv_models` and is named after the full id of the hardware configuration from which the models were obtained (example: `nv_16x32_b1_dat-524288_wt-131072_int8`).
-
-### Setting up and running an experiment
-
-Let's return to the `experiments` directory and select a network/dataset to run an experiment on. As a running example, let's choose AlexNet with the CIFAR10 dataset. Each network/dataset pair is associated with an id that's used by the experiment scripts and is found in different files, so be careful when typing it manually. In our case, the id is `alexnet_cifar10`.
-
-First of all, if you don't already have them, make a `dataset_data` and a `weights` directory inside `experiments`; store the network weight files (typically `.pth` or `.pt` for PyTorch) for your network in `weights` and, if the dataset does not automatically download from TorchVision or similar services, download it yourself and store it into `dataset_data` (an example of the latter case is the COCO dataset). The current versions of the experiment scripts download CIFAR10 automatically, so there is no need to download it manually; a weights file must still be provided, though.
-
-Now head to `experiments/utility_scripts` and edit `script_config.sh`. In particular:
-- set `CLASSES_DIR` to the path of your CLASSES root directory
-- add the network/dataset id to the `NETWORKS` list (in our case, "alexnet_cifar10")
-- add the full hardware configuration id of the error models (the one used for the name of the error models final directory) to the `CONFIGS` list
-- add to `IN` the number of input images you want to use and to `ERR` the number of errors to generate for each layer
-- variables in the `EXPERIMENT CONFIGURATIONS` section are used to generate the experiment configuration files. If you want to know what each field does, take a look at `experiments/template_exp_config.yaml`
-
-Notice that several of the variables in `script_config.sh` are lists and can be used to set up a sequence of experiments to run. Be aware, though, that the scripts will run all possible combinations of said variables, which may result in many experiments being run. A possible use case is to run experiments for a set of networks over several configurations, possibly with different numbers of inputs and errors, but you will probably run experiments for several networks over a single configuration, single number of inputs and single number of errors. The scripts currently do not run experiments in parallel.
-
-You can now run `./make_experiment_configs.sh`, which will create an experiment directory in `experiments`. In our example, it will be called `exp_alexnet_cifar10` and will contain a directory with the hardware configuration name, the same one used for the error models' directory. Inside this second directory will be an experiment configuration YAML file.
-
-Now you can simply run `./perform_experiments.sh`, which will automatically handle the rest of the process. Since experiments are usually quite long, it is recommended to run the script as a background process by appending `&` to the command (also consider using `nohup` if you are connected to a remote shell). Once the experiment is over, the experiment directory will contain several output files, including the tar file of the generated fault list, which can be used to run the same experiment again if needed.
-
-NOTE: if you are running an experiment with `compute_single_metrics` set to True in the configuration file, the corrupted outputs of each network run will be saved to the experiment directory. This will typically make the experiment runtime shorter, but will also require a lot of additional storage space. If you need to compress the results, `experiments/utility_scripts/tar_pack_outputs.sh` can be used to archive them as `.tar.xz` files once the experiments are over.
-
-### A word on the submodules
-
-The two submodules `nets_repo` and `other_nets` already contain scripts to instantiate several common networks along with their datasets. However, they do not contain weight files, which must still be provided separately. If you want to extend the experiment process to different networks, consider checking the submodules first, as the network you are interested in may already be provided by them.
-
-### Extending the set of networks and datasets
-
-Follow this section if you want to run an experiment on a network/dataset pair which is not already provided in the repo.
-
-As we've seen, each network/dataset pair is assigned a unique id, which is used throughout the experiment setup. The list of available ids is stored in the `available` dictionary defined in `experiments/network_getter.py` and you will need to add your own to it, along with the network information needed for the experiment.
-
-Then, in the same file, you need to extend the `match` statement in the `get_network_and_exp_functions()` function to cover the case of your new id. This function must return 5 objects: the model instance, the dataset (in the form of a PyTorch DataLoader), the network info in the `available` dictionary, a run function and a metrics function.
-
-The model instance and the dataloader are usually provided by external functions. The scripts for the networks provided by the repo, for instance, are stored in the two submodules mentioned above.
-
-The run function is called for each generated error and is responsible for executing both a golden run and a "corrupted" run on the network, and returning the results. These functions are collected in `experiments/network_runner.py`, so have a look at them to see how they are structured. If your network is "classical", e.g. a standard classification or segmentation network, you can probably just use one of the available functions in `network_runner.py`; instead, if your network uses some kind of custom interface, as is the case with Ultralytics YOLO, you should write your own run function.
-
-The metrics function takes the results produced by the run function and computes whatever metrics are suitable for the experiment you're running. These functions are collected in `experiments/metrics.py`. Once again, have a look at them to see their structure. It's likely you will have to write your own metrics function, as different experiments may need different metrics to be computed.
-
-A **note** on the run and metrics functions: since these are called in the same way regardless of the underlying network, they should all use the same signatures. Look at how they are called in `experiments/run_experiment.py` to see which parameters are mandatory. All other parameters you may need to pass to your custom functions should be directly passed in `network_getter` via partial application, as is already the case with all networks currently supported.
-
-So, **to recap**:
-- prepare scripts to create a model instance and a dataloader
-- add an entry to the `available` dictionary in `network_getter.py` using as a key the new id of your network/dataset pair
-- if necessary, write your custom run function in `network_runner.py` and your custom metrics function in `metrics.py`
-- extend `get_network_and_exp_functions()` in `network_getter.py` so that it returns the model, the dataloader, and the two functions (partially applied where needed) when your new id is passed to it
+Have a look at the README files in the subdirectories, particularly `error_models` and `experiments` to learn how the new version of the error simulator works and how to extend it.

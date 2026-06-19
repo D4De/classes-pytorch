@@ -1,5 +1,12 @@
-# call with
-# python _fix_applevs.py `find exp* -name "applev*"`
+"""
+Modifies dictionaries in the simulation output applev files to ensure that every spatial class is represented.
+Missing spatial classes are introduced in each layer as entries whose occurrence frequencies are all 0.0.
+From the `experiments` directory, this can be run with:
+
+python _fix_applevs.py `find exp* -name "applev*"`
+
+to target every applev found in all directories whose name starts with exp.
+"""
 
 import sys
 import yaml

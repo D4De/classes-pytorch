@@ -5,9 +5,9 @@
 export CLASSES_DIR="/home/miele/WORKSPACE/classes-simulator"
 export EXP_DIR="${CLASSES_DIR}/experiments"
 
-# --- NETWORKS ---
-# network list is ("alexnet_cifar10" "mobilenetv2_gtsrb" "mobilenetv2-large_gtsrb" "res50_cifar10" "res9_cifar10" "deeplabv3_oxfordpet" "yolov11_coco")
-# configs list is (\
+# --- NETWORKS AND CONFIGURATIONS ---
+# complete network list is ("alexnet_cifar10" "mobilenetv2_gtsrb" "mobilenetv2-large_gtsrb" "res50_cifar10" "res9_cifar10" "deeplabv3_oxfordpet" "yolov11_coco")
+# complete configs list is (\
 #    nv_8x8_b1_dat-524288_wt-32768_int8 \
 #    nv_16x16_b1_dat-524288_wt-65536_int8 \
 #    nv_16x32_b1_dat-524288_wt-131072_int8 \
@@ -18,15 +18,20 @@ export EXP_DIR="${CLASSES_DIR}/experiments"
 #    nv_8x16_b1_dat-2097152_wt-262144_int32 \
 #    nv_32x32_b1_dat-2097152_wt-524288_int32 \
 #)
+#
+# complete list of short config ids is (\
+# 8x8_int8 \
+# 16x16_int8 \
+# 16x32_int8 \
+# 8x8_int16 \
+# 32x16_int16 \
+# 32x32_int16 \
+# 32x8_int32 \
+# 8x16_int32 \
+# 32x32_int32 \
+#)
 
-# export NETWORKS=("deeplabv3_oxfordpet")
-# export CONFIGS=(\
-#    nv_8x8_b1_dat-524288_wt-32768_int8 \
-# #   nv_16x16_b1_dat-524288_wt-65536_int8 \
-# #   nv_16x32_b1_dat-524288_wt-131072_int8 \
-# )
-
-export NETWORKS=("alexnet_cifar10" "mobilenetv2_gtsrb" "res50_cifar10" "deeplabv3_oxfordpet" "yolov11_coco")
+export NETWORKS=("deeplabv3_oxfordpet")
 export CONFIGS=(\
    nv_8x8_b1_dat-524288_wt-32768_int8 \
    nv_16x16_b1_dat-524288_wt-65536_int8 \
@@ -38,13 +43,23 @@ export CONFIGS=(\
    nv_8x16_b1_dat-2097152_wt-262144_int32 \
    nv_32x32_b1_dat-2097152_wt-524288_int32 \
 )
+export SHORT_IDS=(\
+   8x8_int8 \
+   16x16_int8 \
+   16x32_int8 \
+   8x8_int16 \
+   32x16_int16 \
+   32x32_int16 \
+   32x8_int32 \
+   8x16_int32 \
+   32x32_int32 \
+)
 
-export IN=("100")
-export ERR=("160")
+export IN=("100") # input batch size
+export ERR=("50") # number of errors per layer (also per spatial class if UNIFORM_SPATIAL_CLASSES is True)
 
-# --- EXPERIMENT CONFIGURATIONS ---
+# --- EXPERIMENT PARAMETERS ---
 export ERROR_MODELS_DIR="${CLASSES_DIR}/error_models/conv_models"
-export HW_CONFIG_ID="8x8_int8"
 export MODELS_DF_NAME="unique_complete_df.xlsx"
 export USE_SINGLE_BATCH="True"
 export UNIFORM_SPATIAL_CLASSES="True"

@@ -1,6 +1,6 @@
 """
 Packages the results of an app-level error simulation in a dictionary saved to a yaml file, computing the total
-probability of failure (and single probabilities of spatial class failures).
+probability of failure (and single probabilities of spatial class failures). This dictionary is known as an "applev" file.
 Works on a single network experiment at a time.
 """
 
