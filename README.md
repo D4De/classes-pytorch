@@ -225,6 +225,14 @@ The `classes` directory contains the main code for the library. It contains the 
       - `execution time` of each module.
 - `examples`: Contains tutorials. Start from `getting_started.py` and then follow `advanced.py` to see how to run reproducible experiments.
 
+The `error_models` directory contains the error models obtained from previous fault injection campaigns. The error models in `conv_models` are specific to NVDLA and the scripts in `injection_campaign_postprocessing` are used to create them from the results of NVDLA fault injection campaigns. Consult the readme file in the directory to learn more.
+
+The `experiments` directory contains the scripts necessary to easily setup and run CLASSES simulation experiments. The subdirectory `utility_scripts` contains bash scripts to quickly configure and launch experiments. Consult the readme file to learn more.
+
+The `nets_repo` and `other_nets` submodules contain scripts to load DNNs and corresponding datasets. NOTE: they do not contain actual data, which must be downloaded elsewhere.
+
+The `tools` directory contains postprocessing scripts to analyze the experimental results.
+
 ## Examples and Tutorial
 
 You can find commented examples in `examples`,
