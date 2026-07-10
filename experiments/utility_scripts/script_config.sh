@@ -31,7 +31,7 @@ export EXP_DIR="${CLASSES_DIR}/experiments"
 # 32x32_int32 \
 #)
 
-export NETWORKS=("deeplabv3_oxfordpet")
+export NETWORKS=("alexnet_cifar10")
 export CONFIGS=(\
    nv_8x8_b1_dat-524288_wt-32768_int8 \
    nv_16x16_b1_dat-524288_wt-65536_int8 \
@@ -56,7 +56,7 @@ export SHORT_IDS=(\
 )
 
 export IN=("100") # input batch size
-export ERR=("50") # number of errors per layer (also per spatial class if UNIFORM_SPATIAL_CLASSES is True)
+export ERR=("160") # number of errors per layer (also per spatial class if UNIFORM_SPATIAL_CLASSES is True)
 
 # --- EXPERIMENT PARAMETERS ---
 export ERROR_MODELS_DIR="${CLASSES_DIR}/error_models/conv_models"
@@ -67,3 +67,4 @@ export SDC_FREQUENCIES_FILE_NAME="SDC_frequencies.xlsx"
 export TOLERANCE="0.001"
 export COMPUTE_SINGLE_METRICS="False"
 export NUM_THREADS="15"
+export FORCE_SINGLE_CHANNEL="False"

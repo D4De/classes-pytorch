@@ -52,9 +52,9 @@ def pack_report_dictionary(report_dict: dict):
         # compute result frequencies for each spatial class and save in dictionary
         for spatial_class, totals in spatial_classes_dict.items():
             final_total       = sum(totals)
-            masked_freq       = float(totals[0] / final_total)
-            sdc_safe_freq     = float(totals[1] / final_total)
-            sdc_critical_freq = float(totals[2] / final_total)
+            masked_freq       = float(totals[0] / final_total) if final_total != 0 else 0.0
+            sdc_safe_freq     = float(totals[1] / final_total) if final_total != 0 else 0.0
+            sdc_critical_freq = float(totals[2] / final_total) if final_total != 0 else 0.0
 
             layers_dict[layer_name][spatial_class] = {
                 'masked'       : masked_freq,
@@ -73,9 +73,9 @@ def pack_report_dictionary(report_dict: dict):
 
         # add absolute frequencies to layer
         layer_total = total_masked + total_sdc_safe + total_sdc_critical
-        layers_dict[layer_name]['prob_masked']       = float(total_masked/layer_total)
-        layers_dict[layer_name]['prob_sdc_safe']     = float(total_sdc_safe/layer_total)
-        layers_dict[layer_name]['prob_sdc_critical'] = float(total_sdc_critical/layer_total)
+        layers_dict[layer_name]['prob_masked']       = float(total_masked/layer_total if layer_total != 0 else 0.0)
+        layers_dict[layer_name]['prob_sdc_safe']     = float(total_sdc_safe/layer_total if layer_total != 0 else 0.0)
+        layers_dict[layer_name]['prob_sdc_critical'] = float(total_sdc_critical/layer_total if layer_total != 0 else 0.0)
     
     return layers_dict
 

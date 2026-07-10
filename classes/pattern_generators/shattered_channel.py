@@ -10,7 +10,7 @@ from .generator_utils import (
 
 
 def shattered_channel_generator(
-    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
+    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW", force_single_channel=False,
 ) -> np.ndarray:
     c_dim, h_dim, w_dim = layout.index("C"), layout.index("H"), layout.index("W")
     c, h, w = output_shape[c_dim], output_shape[h_dim], output_shape[w_dim]
@@ -23,7 +23,8 @@ def shattered_channel_generator(
         params["max_channel_skip"],
         params["max_corrupted_channels"],
         *params["affected_channels_pct"],
-        min_channels=2
+        min_channels=2,
+        force_single_channel=False,
     )
 
     common_position = np.random.randint(0, num_values_per_channel)

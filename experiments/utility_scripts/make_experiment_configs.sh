@@ -29,7 +29,8 @@ fault_list_path: $6/fault_list_${4}errors.tar
 SDC_frequencies_path: $6/${SDC_FREQUENCIES_FILE_NAME}
 tolerance: ${TOLERANCE}
 compute_single_metrics: ${COMPUTE_SINGLE_METRICS}
-num_threads: ${NUM_THREADS}" > $7
+num_threads: ${NUM_THREADS}
+force_single_channel: ${FORCE_SINGLE_CHANNEL}" > $7
 }
 
 for i in "${!CONFIGS[@]}"; do

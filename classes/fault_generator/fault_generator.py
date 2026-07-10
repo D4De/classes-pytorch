@@ -49,6 +49,7 @@ class FaultGenerator:
         spatial_class: str | None,
         value_range = np.array([-30.0, 30.0], dtype=np.float32),
         dtype = None,
+        force_single_channel=False,
     ) -> Fault:
         """
         Generates a single Fault object based on the configured error models.
@@ -87,7 +88,7 @@ class FaultGenerator:
         # Generate the mask containing corrupted values with the same shape of the output
         # The mask contains 1 when the values are corrupted
         corrupted_value_mask = pattern_generator_fn(
-            output_shape, sp_parameters, self.layout
+            output_shape, sp_parameters, self.layout, force_single_channel=False,
         )
         # Get the number of corrupted values
         corrupted_values_count = int(corrupted_value_mask.sum())
@@ -118,6 +119,7 @@ class FaultGenerator:
         spatial_class: str | None = None,
         value_range = np.array([-30.0, 30.0], dtype=np.float32),
         dtype = None,
+        force_single_channel=False,
     ) -> FaultBatch:
         masks = []
         values = []
@@ -128,7 +130,7 @@ class FaultGenerator:
 
         for _ in range(batch_size):
             mask, corr_value, sp_class, sp_parameter = self.generate_mask(
-                output_shape, spatial_class, value_range, dtype=dtype
+                output_shape, spatial_class, value_range, dtype=dtype, force_single_channel=False,
             )
             masks.append(mask)
             values.append(corr_value)

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def single_channel_random_generator(
-    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
+    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW", force_single_channel=False,
 ) -> np.ndarray:
 
     c_dim, h_dim, w_dim = layout.index("C"), layout.index("H"), layout.index("W")

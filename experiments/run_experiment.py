@@ -83,6 +83,7 @@ def main():
     tolerance               = config.get('tolerance', 0.001)
     num_threads             = config.get('num_threads', 4)
     compute_single_metrics  = config.get('compute_single_metrics', False)
+    force_single_channel    = config.get('force_single_channel', False)
 
     # if the network explicitly requires the calculation of single metrics (e.g. YOLO), override the setting
     compute_single_metrics = requires_single_metrics(network_dataset_id)
@@ -224,7 +225,8 @@ def main():
             num_faults_per_module,
             uniform_spatial_classes,
             logger=exp_logger,
-            overwrite=True
+            overwrite=True,
+            force_single_channel=False,
         )
     
 

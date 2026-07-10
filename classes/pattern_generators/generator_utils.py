@@ -120,17 +120,20 @@ def random_channels(
     corrupted_chan_min_pct: float,
     corrupted_chan_max_pct: float,
     min_channels: int = 1,
+    force_single_channel: bool = False,
 ) -> List[int]:
 
-    max_channels_for_gaps = int(math.floor(num_channels / min_channel_skip)) + 1
-    num_corrupted_channels = random_int_from_pct_range(
-        num_channels, corrupted_chan_min_pct, corrupted_chan_max_pct
-    )
-
-    num_corrupted_channels = max(
-        min(num_corrupted_channels, max_channels_for_gaps, max_corrupted_channels),
-        min(num_channels, min_channels),
-    )
+    if force_single_channel:
+        num_corrupted_channels = 1
+    else:
+        max_channels_for_gaps = int(math.floor(num_channels / min_channel_skip)) + 1
+        num_corrupted_channels = random_int_from_pct_range(
+            num_channels, corrupted_chan_min_pct, corrupted_chan_max_pct
+        )
+        num_corrupted_channels = max(
+            min(num_corrupted_channels, max_channels_for_gaps, max_corrupted_channels),
+            min(num_channels, min_channels),
+        )
 
     min_span = min_channel_skip * (num_corrupted_channels - 1)
     max_span = max_channel_skip * (num_corrupted_channels - 1)

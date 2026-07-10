@@ -10,7 +10,7 @@ from .generator_utils import (
 
 
 def full_channels_generator(
-    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
+    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW", force_single_channel=False,
 ) -> np.ndarray:
     c_dim, h_dim, w_dim = layout.index("C"), layout.index("H"), layout.index("W")
     num_channels = output_shape[c_dim]
@@ -22,7 +22,8 @@ def full_channels_generator(
         params["min_channel_skip"],
         params["max_channel_skip"],
         params["max_corrupted_channels"],
-        *params["affected_channels_pct"]
+        *params["affected_channels_pct"],
+        force_single_channel=False,
     )
     avg_chan_corruption_pct: Tuple[float, float] = params["avg_channel_corruption_pct"]
 

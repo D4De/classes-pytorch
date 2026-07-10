@@ -44,7 +44,7 @@ if __name__ == '__main__':
     configuration_ids   = args_dict['configuration_ids']    
     short_config_ids    = args_dict['short_configuration_ids']
 
-    # The result of this script is an Excel file with 3 sheets: spatial classes vulnerability distribution, generale layer metrics and
+    # The result of this script is an Excel file with 3 sheets: spatial classes vulnerability distribution, general layer metrics and
     # vulnerability values. Each sheet is modeled with a MultiIndex DataFrame.
     
     # Spatial classes:

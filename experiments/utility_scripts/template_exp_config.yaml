@@ -66,3 +66,8 @@ compute_single_metrics: False
 # Num of threads to use when computing metrics for each output. Unused if compute_single_metrics is False.
 # Optional, defaults to 4.
 num_threads: 4
+
+# --------------------------------------------------------------------------------------------------
+
+# If True, forces the generated errors to only affect a single channel, even for multichannel spatial classes
+force_single_channel: False

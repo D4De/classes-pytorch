@@ -3,7 +3,7 @@ import numpy as np
 
 
 def single_generator(
-    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
+    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW", force_single_channel=False,
 ) -> np.ndarray:
     mask = np.zeros(output_shape)
     value = np.random.randint(0, mask.size)

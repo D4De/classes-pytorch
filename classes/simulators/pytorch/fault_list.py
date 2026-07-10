@@ -100,7 +100,8 @@ class PyTorchFaultListDynamic:
         module_name: str,
         num_faults: int,
         uniform_spatial_classes: bool,
-        fault_batch_size: int = 1
+        fault_batch_size: int = 1,
+        force_single_channel=False,
     ):
         num_batches = int(math.ceil(num_faults / fault_batch_size))
         fault_generator = self.module_to_fault_generator[module_name]
@@ -121,7 +122,8 @@ class PyTorchFaultListDynamic:
                         fault_batch_size,
                         spatial_class = spatial_class_name,
                         value_range = operating_range, 
-                        dtype = self.value_dtype
+                        dtype = self.value_dtype,
+                        force_single_channel=False,
                     )
             
                     yield it, fault_batch
@@ -151,6 +153,7 @@ class PyTorchFaultListDynamic:
         fault_batch_size: int = 1,
         exists_ok=True,
         overwrite=False,
+        force_single_channel=False,
     ):
         logger.info('Started fault generation...')
         if n_faults_per_module % fault_batch_size != 0:
@@ -183,7 +186,7 @@ class PyTorchFaultListDynamic:
 
                 # Generate faults lazily and save them to the temp directory
                 for batch_num, fault_batch in self.module_fault_list_generator(
-                    module_name, n_faults_per_module, uniform_spatial_classes, fault_batch_size
+                    module_name, n_faults_per_module, uniform_spatial_classes, fault_batch_size, force_single_channel=False,
                 ):
                     module_path = os.path.join(temp_output_dir, module_name)
                     os.makedirs(module_path, exist_ok=True)

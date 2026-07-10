@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def multiple_channels_multi_block_generator(
-    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW"
+    output_shape: Sequence[int], params: Dict[str, Any], layout="CHW", force_single_channel=False,
 ) -> np.ndarray:
     c_dim, h_dim, w_dim = layout.index("C"), layout.index("H"), layout.index("W")
     c, h, w = output_shape[c_dim], output_shape[h_dim], output_shape[w_dim]
@@ -29,6 +29,7 @@ def multiple_channels_multi_block_generator(
         params["max_corrupted_channels"],
         *params["affected_channels_pct"],
         min_channels=2,
+        force_single_channel=False,
     )
     avg_block_corruption_pct: Tuple[float, float] = params["avg_block_corruption_pct"]
     block_size: int = params["block_size"]
