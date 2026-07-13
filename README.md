@@ -231,7 +231,7 @@ The `experiments` directory contains the scripts necessary to easily setup and r
 
 The `nets_repo` and `other_nets` submodules contain scripts to load DNNs and corresponding datasets. NOTE: they do not contain actual data, which must be downloaded elsewhere.
 
-The `tools` directory contains postprocessing scripts to analyze the experimental results.
+The `tools` directory contains postprocessing scripts to analyze the experimental results. Note that it also contains other miscellaneous scripts used to analyze and combine results from different experiments (including fault injection) in a cross-layer manner.
 
 ## Examples and Tutorial
 

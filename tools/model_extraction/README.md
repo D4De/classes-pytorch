@@ -1,0 +1,7 @@
+These scripts implement some functions that can be used to inspect the convolutional layers of a CNN and extract their hyperparameters and input tensors.
+
+If you only need the hyperparameters of a network's layers, refer to `get_module_hyperparameters`: the python script (.py) is used to build a report containing the list of hyperparameters, while the bash file (.sh) is used to execute the script in bulk for many networks. Be aware that the scripts will need some tweaking to work: ensure that all paths are updated correctly and that you have the appropriate training data, dataset data, and scripts to get networks and dataloaders available. In its current state, the script relies on the same data and files used for the 2025-2026 fault injection experiments on NVDLA, so refer to directory `pytorch-models-data` and the scripts in `tcad2025` if you have them available.
+
+`model_inspection.py` contains functions to get and inspect convolutional layers, but you likely won't need it.
+
+`modules_extraction.py` contains functions to extract additional layer parameters and input tensors. If needed, take a look at `extraction_example.py` to see how these functions can be used to extract layer data, but be aware that this script will also need a working CNN model available.

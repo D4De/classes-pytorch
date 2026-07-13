@@ -1,0 +1,45 @@
+# Path to the CLASSES error models directory
+error_models_base_path: '/home/miele/WORKSPACE/classes-simulator/error_models/conv_models'
+# Path to the CLASSES experiment output directory
+experiments_base_path: '/home/miele/WORKSPACE/results-storage/error_simulation/experiments'
+# Path to the directory containing the network "final" reports (generally called results.csv)
+final_reports_base_path: '/home/miele/WORKSPACE/tcad2025/outdir/reports'
+
+# Paths to the output directories to save the results in, relative to where the scripts are run
+output_dir: './outputs'
+
+# List of network_dataset IDs
+network_dataset_ids:
+  - 'alexnet_cifar10'
+#  - 'mobilenetv2_gtsrb'
+  - mobilenetv2-large_gtsrb
+  - 'res50_cifar10'
+  - 'deeplabv3_oxfordpet'
+  - 'yolov11_coco'
+  - 'res9_cifar10'
+
+#--UNLIKELY TO MODIFY FROM HERE DOWN--#
+
+# List of hardware configurations used in the experiments
+configuration_ids:
+  - nv_8x8_b1_dat-524288_wt-32768_int8
+  - nv_16x16_b1_dat-524288_wt-65536_int8
+  - nv_16x32_b1_dat-524288_wt-131072_int8
+  - nv_8x8_b1_dat-1048576_wt-65536_int16
+  - nv_32x16_b1_dat-1048576_wt-131072_int16
+  - nv_32x32_b1_dat-1048576_wt-262144_int16
+  - nv_32x8_b1_dat-2097152_wt-131072_int32
+  - nv_8x16_b1_dat-2097152_wt-262144_int32
+  - nv_32x32_b1_dat-2097152_wt-524288_int32
+
+# List of shortened names for the configurations (for labelling)
+short_configuration_ids:
+  - 8x8_int8
+  - 16x16_int8
+  - 16x32_int8
+  - 8x8_int16
+  - 32x16_int16
+  - 32x32_int16
+  - 32x8_int32
+  - 8x16_int32
+  - 32x32_int32
