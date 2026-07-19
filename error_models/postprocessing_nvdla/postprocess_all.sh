@@ -28,6 +28,6 @@ models=(\
 
 for model_id in "${models[@]}"; do
     echo "${model_id}"
-    python -m error_models.injection_campaign_postprocessing.postprocess_step1 "error_models/injection_campaign_postprocessing/models_${model_id}/postprocessing_config.yaml" &&
-    python -m error_models.injection_campaign_postprocessing.postprocess_step2 "error_models/injection_campaign_postprocessing/models_${model_id}/postprocessing_config.yaml"
+    python -m error_models.postprocessing_nvdla.postprocess_step1 "error_models/injection_campaign_postprocessing/models_${model_id}/postprocessing_config.yaml" &&
+    python -m error_models.postprocessing_nvdla.postprocess_step2 "error_models/injection_campaign_postprocessing/models_${model_id}/postprocessing_config.yaml"
 done

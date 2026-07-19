@@ -9,7 +9,7 @@ import yaml
 
 from argparse import ArgumentParser
 
-from error_models.injection_campaign_postprocessing.postprocessing_utils import snakecase_spatial_classes
+from error_models.postprocessing_nvdla.postprocessing_utils import snakecase_spatial_classes
 
 def parse_arguments():
     parser = ArgumentParser()

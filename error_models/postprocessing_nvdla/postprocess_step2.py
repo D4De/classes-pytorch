@@ -3,7 +3,7 @@ import json
 import shutil
 import pandas as pd
 
-import error_models.injection_campaign_postprocessing.postprocessing_utils as utils
+import error_models.postprocessing_nvdla.postprocessing_utils as utils
 
 
 def merge_matching_layers(complete_df: pd.DataFrame, initial_models_dir: str, merged_models_dir: str):

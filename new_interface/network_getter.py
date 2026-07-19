@@ -29,15 +29,15 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
         raise ValueError(f'{id} is not an available combination. Choose from {list(available.keys())}.')
     network_info = available[id]
 
-    weights_dir = 'experiments/weights'
-    data_dir = 'experiments/dataset_data'
+    weights_dir = 'new_interface/weights'
+    data_dir = 'new_interface/dataset_data'
 
     match id:
         case 'res50_cifar10':
             from nets_repo.classification.cifar10.models.resnet import ResNet50
             from nets_repo.classification.cifar10.dataset import getCIFAR10
-            from experiments.network_runner import classification_run
-            from experiments.metrics import compute_classification_run_metrics
+            from new_interface.network_runner import classification_run
+            from new_interface.metrics import compute_classification_run_metrics
             model = ResNet50()
             model.load_state_dict(torch.load(os.path.join(weights_dir, 'resnet50', 'fp32_res50_cifar10.pth')))
             if not return_model_only:
@@ -48,8 +48,8 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
         case 'res9_cifar10':
             from nets_repo.classification.cifar10.models.resnet9 import ResNet9
             from nets_repo.classification.cifar10.dataset import getCIFAR10
-            from experiments.network_runner import classification_run
-            from experiments.metrics import compute_classification_run_metrics
+            from new_interface.network_runner import classification_run
+            from new_interface.metrics import compute_classification_run_metrics
             model = ResNet9(in_channels=3, num_classes=network_info.num_classes)
             model.load_state_dict(torch.load(os.path.join(weights_dir, 'resnet9', 'fp32_res9_cifar10.pth')))
             if not return_model_only:
@@ -60,8 +60,8 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
         case 'alexnet_cifar10':
             from nets_repo.classification.cifar10.models.alexnet import AlexNet
             from nets_repo.classification.cifar10.dataset import getCIFAR10
-            from experiments.network_runner import classification_run
-            from experiments.metrics import compute_classification_run_metrics
+            from new_interface.network_runner import classification_run
+            from new_interface.metrics import compute_classification_run_metrics
             model = AlexNet()
             model.load_state_dict(torch.load(os.path.join(weights_dir, 'alexnet', 'fp32_alexnet_cifar10.pth')))
             if not return_model_only:
@@ -72,8 +72,8 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
         case 'mobilenetv2_gtsrb' | 'mobilenetv2-large_gtsrb':
             from other_nets.classification.gtsrb.models.mobilenetv2 import get_mobilenetv2_model
             from other_nets.classification.gtsrb.dataset import getGTSRB
-            from experiments.network_runner import classification_run
-            from experiments.metrics import compute_classification_run_metrics
+            from new_interface.network_runner import classification_run
+            from new_interface.metrics import compute_classification_run_metrics
             model = get_mobilenetv2_model(43, os.path.join(weights_dir, 'mobilenetv2', 'mobilenetv2_gtsrb_best.pth'))
             if not return_model_only:
                 image_size = 128 if id == 'mobilenetv2-large_gtsrb' else 32
@@ -84,8 +84,8 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
         case 'yolov11_coco':
             from other_nets.detection.coco.models.yolov11.yolov11 import get_yolov11
             from other_nets.detection.coco.dataset import getCOCO
-            from experiments.network_runner import yolo_detection_run
-            from experiments.metrics import compute_yolo_detection_run_metrics
+            from new_interface.network_runner import yolo_detection_run
+            from new_interface.metrics import compute_yolo_detection_run_metrics
             image_size: int = 640
             model = get_yolov11(os.path.join(weights_dir, 'yolov11'))
             if not return_model_only:
@@ -102,8 +102,8 @@ def get_network_and_exp_functions(id: str, batch_size: int, device, return_model
         case 'deeplabv3_oxfordpet':
             from other_nets.segmentation.oxfordpet.models.deeplabv3 import get_deeplabv3
             from other_nets.segmentation.oxfordpet.dataset import get_oxfordpet
-            from experiments.network_runner import segmentation_run
-            from experiments.metrics import compute_segmentation_run_metrics
+            from new_interface.network_runner import segmentation_run
+            from new_interface.metrics import compute_segmentation_run_metrics
             model = get_deeplabv3(os.path.join(weights_dir, 'deeplabv3', 'deeplabv3_pet_0.7500.pt'))
             if not return_model_only:
                 loader = get_oxfordpet(os.path.join(data_dir, 'oxfordpet'), batch_size, 0)

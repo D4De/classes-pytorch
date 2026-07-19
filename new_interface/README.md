@@ -2,30 +2,37 @@
 
 This directory contains all scripts needed to set up and run error simulation experiments using sets of error models specifically derived from NVDLA fault injection campaigns. However, only a few scripts and files actually depend on the structure of NVDLA campaign outputs and the following methods can be easily extended to results from other sources. Similarly, these methods currently only work for convolutional layers, but extensions should be simple to implement.
 
-## Setting up and running an experiment
+## Example: setting up and running an experiment
+First of all, if you don't already have the standard set of network weights, download it [here](...). Move the downloaded archive to `new_interface` and extract with:
+```
+tar -x -I xz -f weights.tar.xz
+```
+Make sure that there is now a `new_interface/weights` directory, containing one subdirectory per network.
 
-Begin by choosing a network/dataset pair to run an experiment on and decide how to structure the experiment. Our running example is as follows:
+We begin by choosing a network/dataset pair to run an experiment on and decide how to structure the experiment. Our running example is as follows:
 - network: AlexNet
 - dataset: CIFAR10
 - configuration: nv_8x8_b1_dat-524288_wt-32768_int8
-- batch size (number of input images): 100
-- number of errors (per layer and per spatial classes): 160
+- batch size (number of input images): 10
+- number of errors (per layer and per spatial classes): 10
 Each network/dataset pair is associated with an id that's used by the experiment scripts and is checked by different scripts, so ensure that you type it correctly. In our case, the id is `alexnet_cifar10`. The full list of ids is defined in `network_getter.py`: it's the set of keys in the `available` dictionary.
 
-If you don't already have them, make a `dataset_data` and a `weights` directory inside `experiments`; store the network weight files (typically `.pth` or `.pt` for PyTorch) for your network in `weights` and, if the dataset is not automatically downloaded from TorchVision or similar services, download it yourself and store it into `dataset_data` (an example of the latter case is the COCO dataset). The current versions of the experiment scripts download CIFAR10 automatically, so there is no need to download it manually; a weights file must still be provided, though.
+Network weights are stored in `weights`, while dataset data are stored in `dataset_data`, both in this `new_interface` directory. You should already have the weights available, while most datasets are automatically downloaded during an experiment (CIFAR10 is, so you don't need anything else for this example).
 
 Move into `utility_scripts` and edit `script_config.sh`. In particular:
-- set `CLASSES_DIR` to the path of your CLASSES root directory
-- add the network/dataset id to the `NETWORKS` list (in our case, "alexnet_cifar10")
-- add the full hardware configuration id of the error models you want to use to the `CONFIGS` list. This should be the name of the error models directory in `error_models/conv_models` (in our case, `nv_8x8_b1_dat-524288_wt-32768_int8`). Since the configuration id is quite long, also add a shorter one to use for output filenames (in our case, `8x8_int8`) to the `SHORT_IDS` list. Make sure that the two lists have the same number of elements and that the shorter ids are in the same position as their corresponding full id
-- add to `IN` the number of input images you want to use (in our case, "100") and to `ERR` the number of errors to generate for each layer (in our case, "160")
+- set `CLASSES_DIR` to the path of your CLASSES root directory; the results of the experiment will be saved in the `EXP_DIR` directory, which by default is `experiments` (you may change it as needed)
+- set the `NETWORKS` list to ("alexnet_cifar10"); if you wanted to run experiments on several networks, you would need to list all of their ids here
+- set the `CONFIGS` list to the full hardware configuration id of the error models you want to use; this should be the name of the error models directory in `error_models/nvdla_models` (in our case, "nv_8x8_b1_dat-524288_wt-32768_int8"). Since the configuration id is quite long, also add a shorter one to use for output filenames (in our case, "8x8_int8") to the `SHORT_IDS` list. Make sure that the two lists have the same number of elements and that the shorter ids are in the same position as their corresponding full id. Once again, you would add as many entries as needed if you wanted to run experiments on many configurations
+- set `IN` to the number of input images you want to use (in our case, "10") and `ERR` to the number of errors to generate for each layer (in our case, "10")
 - variables in the `EXPERIMENT CONFIGURATIONS` section are used to generate the experiment configuration files. If you want to know what each field does, take a look at `template_exp_config.yaml`. In most cases, you won't need to modify them
 
-`NETWORKS`, `CONFIGS`, `SHORT_IDS`, `IN` and `ERR` are all lists and can be used to set up a sequence of experiments to run. Be aware, though, that the scripts will run all possible combinations of values in the lists, which may result in many experiments being run (for example, if you list 3 networks, 4 configs and 1 value each for `IN` and `ERR`, you will run 12 experiments). The scripts do **NOT** currently run experiments in parallel.
+As anticipated, `NETWORKS`, `CONFIGS`, `SHORT_IDS`, `IN` and `ERR` are all lists and can be used to set up a sequence of experiments to run. Be aware, though, that the scripts will run all possible combinations of values in the lists, which may result in many experiments being run (for example, if you list 3 networks, 4 configs and 1 value each for `IN` and `ERR`, you will run 12 experiments). The scripts do **NOT** currently run experiments in parallel.
 
-You can now run `./make_experiment_configs.sh`, which will create an experiment directory in `experiments`. In our example, it will be called `exp_alexnet_cifar10` and will contain one directory with the hardware configuration name, the same one used for the error models' directory. Inside this second directory will be an experiment configuration YAML file. If you specified more than one configuration in `script_config.sh`, you will see one subdirectory per configuration, each with its own configuration file inside.
+You can now run `./make_experiment_configs.sh`, which will create an experiment directory in `experiments` (or whatever output directory you specified in the configuration parameters). In our example, it will be called `exp_alexnet_cifar10` and will contain one directory with the hardware configuration name, the same one used for the error models' directory. Inside this second directory will be an experiment configuration YAML file. If you specified more than one configuration in `script_config.sh`, you would see one subdirectory per configuration, each with its own configuration file inside.
 
-Now you can simply run `./perform_experiments.sh`, which will automatically handle the rest of the process. Since experiments are usually quite long, it is recommended to run the script as a background process by appending `&` to the command. Also consider using `nohup` if you are connected to a remote shell, like so: `nohup ./perform_experiments.sh &`. Once the experiment is over, the experiment directory will contain:
+Now you can simply run `./perform_experiments.sh`, which will automatically handle the rest of the process. Since experiments are usually quite long, it is recommended to run the script as a background process by appending `&` to the command. Also consider using `nohup` if you are connected to a remote shell, like so: `nohup ./perform_experiments.sh &`.
+
+Once the experiment is over, the experiment directory will contain:
 - a complete log in the `logs` subdirectory
 - a fault list tar file encoding all produced errors, which can be used to exactly replicate the experiment (NOTE: if the fault list already exists when the experiment is run, the simulator will use that and no new errors will be generated. If you want to generate new errors, either remove the fault list file or change the invocation in `./perform_experiments.sh` to include the -rf flag, which forces the simulator to regenerate all errors. Be aware that this second option will overwrite the existing fault list)
 - an `SDC_frequencies.xlsx` file listing the SDC and spatial class frequencies for each targeted layer in the network. Most frequencies are the ones obtained by interpolating the error models
@@ -36,7 +43,7 @@ NOTE: if you are running an experiment with `compute_single_metrics` set to Fals
 
 ## A word on the submodules
 
-The two submodules `nets_repo` and `other_nets` already contain scripts to instantiate several common networks along with their datasets. However, they do not contain weight files, which must still be provided separately. If you want to extend the experiment process to different networks, consider checking the submodules first, as the network you are interested in may already be provided by them.
+The two submodules `nets_repo` and `other_nets` already contain scripts to instantiate several common networks along with their datasets. However, they do not contain weight files, which must still be downloaded separately. If you want to extend the experiment process to different networks, consider checking the submodules first, as the network you are interested in may already be provided by them.
 
 ## Extending the set of networks and datasets
 

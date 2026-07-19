@@ -10,12 +10,12 @@ from classes.simulators.pytorch.module_profiler import module_range_profiler, mo
 from classes.simulators.pytorch.error_model_mapper import load_error_models, map_layers_to_error_models
 from classes.simulators.pytorch.fault_list_datasets import FaultListFromTarFileDynamic
 
-import experiments.logger as logger
-import experiments.experiment_utils as utils
+import new_interface.logger as logger
+import new_interface.experiment_utils as utils
 
-from experiments.args import parse_args
-from experiments.network_getter import get_network_and_exp_functions, requires_single_metrics
-from experiments.results_to_dictionary import pack_report_dictionary
+from new_interface.args import parse_args
+from new_interface.network_getter import get_network_and_exp_functions, requires_single_metrics
+from new_interface.results_to_dictionary import pack_report_dictionary
 
 
 def main():

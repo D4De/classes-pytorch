@@ -15,7 +15,7 @@ for config in "${CONFIGS[@]}"; do
                 config_name=conf_${num_input}in_${num_err}err.yaml
                 saved_outputs_dir=saved_rankings_${num_input}in_${num_err}err
                 # run experiment - add flag -rf to regenerate fault lists and sdc frequency files if necessary
-                python -m experiments.run_experiment ${single_exp_dir} -cf ${config_name} &&
+                python -m new_interface.run_experiment ${single_exp_dir} -cf ${config_name} &&
                 # change saved outputs dir name
                 mv ${single_exp_dir}/outputs/saved_rankings ${single_exp_dir}/outputs/${saved_outputs_dir}
             done

@@ -1,5 +1,5 @@
 # Path to the CLASSES error models directory
-error_models_base_path: '/home/miele/WORKSPACE/classes-simulator/error_models/conv_models'
+error_models_base_path: '/home/miele/WORKSPACE/classes-simulator/error_models/nvdla_models'
 # Path to the CLASSES experiment output directory
 experiments_base_path: '/home/miele/WORKSPACE/results-storage/error_simulation/experiments'
 # Path to the directory containing the network "final" reports (generally called results.csv)

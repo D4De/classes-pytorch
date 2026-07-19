@@ -51,7 +51,7 @@ pip install torchinfo numpy tqdm
 To install the framework you only need to clone the repository:
 
 ```
-git clone https://github.com/D4De/classes-pytorch.git
+git clone --recurse-submodules https://github.com/D4De/classes-pytorch.git
 ```
 
 and import the `classes` module.
@@ -75,9 +75,11 @@ Here we can see more in depth how CLASSES works.
 It uses the concept of a *saboteur* implemented in PyTorch as a hook. The hook is executed at the end of the execution of the layer
 and corrupts the result of the layer.
 
+In 2025, a new set of fault injection campaigns on the NVDLA was carried out to build a large set of error models for the accelerator.
+
 ### Supported operators
 
-The operators supported are the following:
+The operators supported for the GPU models are the following:
 
 - Convolution: 2d GEMM convolution
 - Pooling: Max and Average 2d
@@ -85,6 +87,8 @@ The operators supported are the following:
 - Bias Add
 
 Other operators can be added after generating their error models by performing platform-level fault injection campaigns.
+
+The NVDLA campaign only targeted convolutional layers.
 
 ### Error models
 
@@ -144,6 +148,8 @@ For a given operator, the json file contains the relative frequency of each spat
 
 The injection site generator will randomly pick a spatial pattern (with a probability equal to its relative frequency) and a configuration of spatial and domain parameters. The generator then picks the corrupted locations in the tensor by calling the pattern generator function corresponding to the picked spatial pattern (the code pattern generator functions are in `classes/pattern_generators`). For each corrupted location, a value is picked according to the domain parameters distribution, and the corrupted tensor is inserted in the network by the error simulator module described below.
 
+The models are still structured exactly in the same way for NVDLA.
+
 ## Architecture
 
 The framework is composed of two decoupled parts: the backend and the frontend.
@@ -192,8 +198,7 @@ The faults can then be injected by using the forward hooks provided by CLASSES i
 
 ### Directory Structure
 
-The `classes` directory contains the main code for the library. It contains the following submodules:
-
+The `classes` directory contains the main code for the library. It contains the following subdirectories:
 - `error_models` (backend): contains logic for loading from json files and for representing the errors models.
 - `fault_generator` (backend): contains the code for randomly generating the faults from the error models.
   - `fault_generator.py`: implements the `FaultGenerator` class.
@@ -225,18 +230,18 @@ The `classes` directory contains the main code for the library. It contains the 
       - `execution time` of each module.
 - `examples`: Contains tutorials. Start from `getting_started.py` and then follow `advanced.py` to see how to run reproducible experiments.
 
-The `error_models` directory contains the error models obtained from previous fault injection campaigns. The error models in `conv_models` are specific to NVDLA and the scripts in `injection_campaign_postprocessing` are used to create them from the results of NVDLA fault injection campaigns. Consult the readme file in the directory to learn more.
+The `error_models` directory contains the error models obtained from previous fault injection campaigns. The error models in `nvdla_models` are specific to NVDLA and the scripts in `postprocessing_nvdla` are used to create them from the results of NVDLA fault injection campaigns. Consult the readme file in the directory to learn more.
 
-The `experiments` directory contains the scripts necessary to easily setup and run CLASSES simulation experiments. The subdirectory `utility_scripts` contains bash scripts to quickly configure and launch experiments. Consult the readme file to learn more.
+The `new_interface` directory contains the scripts necessary to easily setup and run CLASSES simulation experiments. The subdirectory `utility_scripts` contains bash scripts to quickly configure and launch experiments. Consult the readme file to learn more.
 
 The `nets_repo` and `other_nets` submodules contain scripts to load DNNs and corresponding datasets. NOTE: they do not contain actual data, which must be downloaded elsewhere.
+In particular, some standard weights can be downloaded [here](...), while you can refer to the `other_nets/detection/coco/download_coco_valid2017.sh` bash script to download a subset of COCO2017.
 
 The `tools` directory contains postprocessing scripts to analyze the experimental results. Note that it also contains other miscellaneous scripts used to analyze and combine results from different experiments (including fault injection) in a cross-layer manner.
 
 ## Examples and Tutorial
 
-You can find commented examples in `examples`,
-which showcase the main features of CLASSES.
+You can find two commented examples (for NVBitFI) in `examples`, which showcase the main features of CLASSES.
 
 You can run them with
 
@@ -252,4 +257,6 @@ from the root folder of the repo.
 
 # Simulator Extension (2025)
 
-Have a look at the README files in the subdirectories, particularly `error_models` and `experiments` to learn how the new version of the error simulator works and how to extend it.
+Have a look at the README files in the subdirectories, particularly `error_models` and `new_interface` to learn how the new version of the error simulator works and how to extend it.
+The readme in `error_models` guides through an example postprocessing of the error classifier's results to produce usable error models.
+The readme in `new_interface` guides through an error simulation experiment on AlexNet, using the error models from the smallest NVDLA configuration.

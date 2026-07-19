@@ -4,7 +4,7 @@ import yaml
 import torch
 import pandas as pd
 
-import experiments.network_getter as netget
+import new_interface.network_getter as netget
 
 from argparse import ArgumentParser
 

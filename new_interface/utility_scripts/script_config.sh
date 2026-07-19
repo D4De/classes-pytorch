@@ -34,32 +34,32 @@ export EXP_DIR="${CLASSES_DIR}/experiments"
 export NETWORKS=("alexnet_cifar10")
 export CONFIGS=(\
    nv_8x8_b1_dat-524288_wt-32768_int8 \
-   nv_16x16_b1_dat-524288_wt-65536_int8 \
-   nv_16x32_b1_dat-524288_wt-131072_int8 \
-   nv_8x8_b1_dat-1048576_wt-65536_int16 \
-   nv_32x16_b1_dat-1048576_wt-131072_int16 \
-   nv_32x32_b1_dat-1048576_wt-262144_int16 \
-   nv_32x8_b1_dat-2097152_wt-131072_int32 \
-   nv_8x16_b1_dat-2097152_wt-262144_int32 \
-   nv_32x32_b1_dat-2097152_wt-524288_int32 \
+   # nv_16x16_b1_dat-524288_wt-65536_int8 \
+   # nv_16x32_b1_dat-524288_wt-131072_int8 \
+   # nv_8x8_b1_dat-1048576_wt-65536_int16 \
+   # nv_32x16_b1_dat-1048576_wt-131072_int16 \
+   # nv_32x32_b1_dat-1048576_wt-262144_int16 \
+   # nv_32x8_b1_dat-2097152_wt-131072_int32 \
+   # nv_8x16_b1_dat-2097152_wt-262144_int32 \
+   # nv_32x32_b1_dat-2097152_wt-524288_int32 \
 )
 export SHORT_IDS=(\
    8x8_int8 \
-   16x16_int8 \
-   16x32_int8 \
-   8x8_int16 \
-   32x16_int16 \
-   32x32_int16 \
-   32x8_int32 \
-   8x16_int32 \
-   32x32_int32 \
+   # 16x16_int8 \
+   # 16x32_int8 \
+   # 8x8_int16 \
+   # 32x16_int16 \
+   # 32x32_int16 \
+   # 32x8_int32 \
+   # 8x16_int32 \
+   # 32x32_int32 \
 )
 
-export IN=("100") # input batch size
-export ERR=("160") # number of errors per layer (also per spatial class if UNIFORM_SPATIAL_CLASSES is True)
+export IN=("10") # input batch size
+export ERR=("10") # number of errors per layer (also per spatial class if UNIFORM_SPATIAL_CLASSES is True)
 
 # --- EXPERIMENT PARAMETERS ---
-export ERROR_MODELS_DIR="${CLASSES_DIR}/error_models/conv_models"
+export ERROR_MODELS_DIR="${CLASSES_DIR}/error_models/nvdla_models"
 export MODELS_DF_NAME="unique_complete_df.xlsx"
 export USE_SINGLE_BATCH="True"
 export UNIFORM_SPATIAL_CLASSES="True"

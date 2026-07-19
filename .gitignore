@@ -14,13 +14,14 @@ classes.egg-info
 data/*
 .spyproject
 
-experiments/dataset_data/**
+new_interface/dataset_data/**
+new_interface/weights/**
 experiments/exp_*
 experiments_single_channel
 **/*Zone.Identifier
 **/*.pth
 **/*.pt
-error_models/injection_campaign_postprocessing/models_*/
+error_models/postprocessing_nvdla/models_*/
 **/*.tar*
 **/*.zip
 **/nohup.out

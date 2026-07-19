@@ -3,7 +3,7 @@ import json
 import shutil
 import pandas as pd
 
-import error_models.injection_campaign_postprocessing.postprocessing_utils as utils
+import error_models.postprocessing_nvdla.postprocessing_utils as utils
 
 
 def check_layers(outputs_base_path: str, nvdla_configuration: str, networks_and_layers: dict):

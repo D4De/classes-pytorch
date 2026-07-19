@@ -1,4 +1,5 @@
-The scripts in this directory are used to collect experimental results and to produce several plots from them.
+# Postprocessing scripts
+The scripts in this directory are used to collect experimental results and to produce several plots from them. If you have the `results-storage` directory available, you can see many output examples.
 
 `make_experiment_blobs.py` collects results from the applev files produced by the error simulation experiments and combines them with layer hyperparameters to produce a single blob .csv file for each network. For convenience, you can use `make_experiment_blobs.sh` to invoke the script, but be sure to adjust all paths appropriately. The script expects the following arguments:
 - `output_dir`: path to the directory to save the resulting blob files in
@@ -28,3 +29,58 @@ Directory `additional_pictures` contains more scripts to produce plots:
 - `layer_time_area_charts.py` produces aggregation coefficients plots (so-called "rectangle charts") for each layer, hardware unit, and configuration. These charts show one rectangle per unit; the width is the liveness (active time) of the unit, while the height is the area (fraction of registers belonging to the unit). Note that only rectangles whose area is sufficient for the plot are shown. Edit the paths at the top of the script if you need to run it. It takes as input `aggregation_pieces.csv`, stored in `results-storage/network_reports`.
 - `network_fit_graphs.py` produces simple bar charts for every network, showing the distribution of its FIT values across the NVDLA configurations. Edit the paths at the top of the script if you need to run it. It takes as input `network_fit_values.csv`, stored in `results-storage/pictures/results_dfs/cross_layer_aggregates`.
 - `spatial_class_distribution.py` plots stacked bar charts showing the average spatial class frequencies for each hardware unit, as well as the total average frequencies. One such chart is produced for every NVDLA configuration. Edit the paths at the top of the script if you need to run it. It takes as input `raw_layer_results.csv` and the individual unit `results_*` csv files stored in `results-storage/network_reports`.
+
+# An example
+This example shows how the most important postprocessing scripts work by executing them on the results of fault injection and error simulation for AlexNet (in one NVDLA configuration).
+
+Download the necessary files [here](...) and extract wherever you want with
+```
+tar -x -I xz -f postprocessing_example.tar.xz
+```
+The `experiments` directory contains the essential output files from an AlexNet experiment carried out using the error models for the 8x8_int8 NVDLA configuration.
+The `experiments_single_channel` directory contains similar results obtained by forcing the error simulation experiments to single channel errors only.
+The `network_hypers` directory contains a csv file listing the hyperparameters of AlexNet's convolutional layers, which are generally produced using the scripts in `tools/model_extraction`.
+The `network_reports` directory contains several additional files, either obtained from these postprocessing scripts or by using those of the NVDLA RTL-level simulator.
+The `outdir` directory uses the same structure as the output directory of the NVDLA simulator and contains some basic results for AlexNet.
+
+You can now use the downloaded files as follows:
+1) `make_experiment_blobs`: edit `make_experiment_blobs.sh` and set
+- `OUTPUT_DIR` to a directory of your choice
+- `CLASSES_BASE_DIR` to the `experiments` directory among the files you just downloaded
+- `HYPERS_BASE_DIR` to the `network_hypers` directory among the files you just downloaded
+- `NETWORKS` to the single entry `alexnet_cifar10`
+- `EXP_DIRS` to the single entry `exp_alexnet_cifar10` (name of the network directory within `experiments`)
+- `CONFIGS` to the single entry matching the configuration ('nv_8x8_b1_dat-524288_wt-32768_int8')
+- leave `SPATIAL_CLASSES` as-is
+Run `./make_experiment_blobs.sh` to create the `alexnet_cifar10_application.csv` aggregated file.
+
+2) `build_results_dfs`: edit `args.yaml` and set
+- `error_models_base_path` to the CLASSES directory containing the error models (`error_models/nvdla_models`)
+- `experiments_base_path` to the `experiments` directory you downloaded
+- `final_reports_base_path` to the `network_reports` directory you downloaded
+- `output_dir` to an output directory of your choice
+- `network_dataset_ids` to the single entry `alexnet_cifar10`
+- `configuration_ids` to the single entry corresponding to the configuration ('nv_8x8_b1_dat-524288_wt-32768_int8')
+- `short_configuration_ids` to the single entry corresponding to the short configuration id ('8x8_int8')
+Run `python build_results_dfs.py <path/to/args.yaml>` to produce a set of aggregation dataframes and corresponding heatmaps.
+
+3) `gather_layer_aggregation_pieces`: edit the script directly and set
+- `benchmarks_source_dir` to the `outdir` directory you downloaded
+- `results_path` so that it leads to the `results.csv` file in `network_reports`
+- `output_path` to the location you want for the output csv file (generally, the name is `aggregation_pieces.csv` or something similar)
+- `allowed_configs` to the only configuration we're considering ('nv_8x8_b1_dat-524288_wt-32768_int8')
+Then simply run the script to create the csv file.
+
+4) `raw_layer_results`: edit the script directly and set
+- `results_path` so that it leads to the `results.csv` file
+- `benchmarks_path` so that it leads to the `outdir/benchmarks` directory
+- `classes_exp_path` so that it leads to the `experiments` directory
+- `classes_extra_results_path` so that it leads to the `experiments_single_channel` directory
+- `networks` to the single entry 'alexnet_cifar10'
+- `network_hypers_path` to the `network_hypers` directory
+- `out_layer_path` to the location you want for the `raw_layer_results.csv` file
+- `out_units_path` to the location you want for the `raw_units_results.csv` file
+- `configs` to the single entry corresponding to the configuration ('nv_8x8_b1_dat-524288_wt-32768_int8')
+Run the script to create the two csv files.
+
+You should now have all the files needed to run the other scripts in `additional_pictures`. Edit the parameters at the top of each script by following the input details explained in the previous section.
