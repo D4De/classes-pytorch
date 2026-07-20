@@ -33,7 +33,7 @@ Directory `additional_pictures` contains more scripts to produce plots:
 # An example
 This example shows how the most important postprocessing scripts work by executing them on the results of fault injection and error simulation for AlexNet (in one NVDLA configuration).
 
-Download the necessary files [here](...) and extract wherever you want with
+Download the necessary files [here](https://miele.faculty.polimi.it/postprocessing_example_data.tar.xz) and extract wherever you want with
 ```
 tar -x -I xz -f postprocessing_example.tar.xz
 ```

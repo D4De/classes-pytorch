@@ -46,7 +46,7 @@ source .venv/bin/activate
 pip install torchinfo numpy tqdm
 ```
 
-## Installation
+An alternative option for package management, which may be required by some specific libraries, is Conda. Look [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html) for instructions on how to install it.
 
 To install the framework you only need to clone the repository:
 
@@ -54,7 +54,7 @@ To install the framework you only need to clone the repository:
 git clone --recurse-submodules https://github.com/D4De/classes-pytorch.git
 ```
 
-and import the `classes` module.
+If you write new scripts that use CLASSES, simply import the `classes` module.
 
 ## How it works
 
@@ -235,7 +235,7 @@ The `error_models` directory contains the error models obtained from previous fa
 The `new_interface` directory contains the scripts necessary to easily setup and run CLASSES simulation experiments. The subdirectory `utility_scripts` contains bash scripts to quickly configure and launch experiments. Consult the readme file to learn more.
 
 The `nets_repo` and `other_nets` submodules contain scripts to load DNNs and corresponding datasets. NOTE: they do not contain actual data, which must be downloaded elsewhere.
-In particular, some standard weights can be downloaded [here](...), while you can refer to the `other_nets/detection/coco/download_coco_valid2017.sh` bash script to download a subset of COCO2017.
+In particular, some standard weights can be downloaded [here](https://miele.faculty.polimi.it/weights.tar.xz), while you can refer to the `other_nets/detection/coco/download_coco_valid2017.sh` bash script to download a subset of COCO2017. Also note that the 2025 experiments involving COCO were executed on the version of YOLOv11 provided by Ultralytics; refer to their [official site](https://docs.ultralytics.com/) to install the necessary package.
 
 The `tools` directory contains postprocessing scripts to analyze the experimental results. Note that it also contains other miscellaneous scripts used to analyze and combine results from different experiments (including fault injection) in a cross-layer manner.
 
@@ -244,13 +244,11 @@ The `tools` directory contains postprocessing scripts to analyze the experimenta
 You can find two commented examples (for NVBitFI) in `examples`, which showcase the main features of CLASSES.
 
 You can run them with
-
 ```
 python -m examples.getting_started
 python -m examples.advanced
 
 ```
-
 from the root folder of the repo.
 
 **NOTE**: these examples are outdated and incomplete as of 2025. We suggest skipping them.

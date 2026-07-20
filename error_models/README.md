@@ -26,7 +26,7 @@ Once you're done, move all error models from the postprocessing subdirectory `me
 If you need to postprocess the results from many configurations, consider editing and using the utility script `postprocess_all.sh` after you have created all YAML configuration files.
 
 ## Postprocessing example
-Download FI/classification output data [here](...).
+Download FI/classification output data [here](https://miele.faculty.polimi.it/classifier_example_data.tar.xz).
 
 Move it wherever you want and extract with:
 ```
@@ -35,7 +35,7 @@ tar -x -I xz -f classifier_example_data.tar.xz
 
 The extracted directory contains an `alexnet_cifar10` subdirectory, which contains another subdirectory related to NVDLA's 8x8_int8 configuration; the latter contains the results for the first three convolutional layers of AlexNet.
 
-If you don't have the network weights, download them [here](...).
+If you don't have the network weights, download them [here](https://miele.faculty.polimi.it/alexnet_weights.tar.xz).
 
 Move it to `new_interface` and extract with:
 ```

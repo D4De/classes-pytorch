@@ -3,7 +3,7 @@
 This directory contains all scripts needed to set up and run error simulation experiments using sets of error models specifically derived from NVDLA fault injection campaigns. However, only a few scripts and files actually depend on the structure of NVDLA campaign outputs and the following methods can be easily extended to results from other sources. Similarly, these methods currently only work for convolutional layers, but extensions should be simple to implement.
 
 ## Example: setting up and running an experiment
-First of all, if you don't already have the standard set of network weights, download it [here](...). Move the downloaded archive to `new_interface` and extract with:
+First of all, if you don't already have the standard set of network weights, download it [here](https://miele.faculty.polimi.it/weights.tar.xz). Move the downloaded archive to `new_interface` and extract with:
 ```
 tar -x -I xz -f weights.tar.xz
 ```
