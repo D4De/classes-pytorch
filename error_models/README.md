@@ -35,7 +35,7 @@ tar -x -I xz -f classifier_example_data.tar.xz
 
 The extracted directory contains an `alexnet_cifar10` subdirectory, which contains another subdirectory related to NVDLA's 8x8_int8 configuration; the latter contains the results for the first three convolutional layers of AlexNet.
 
-If you don't have the network weights, download them [here](https://miele.faculty.polimi.it/alexnet_weights.tar.xz).
+If you don't have the network weights, download them [here](https://miele.faculty.polimi.it/weights.tar.xz).
 
 Move it to `new_interface` and extract with:
 ```
